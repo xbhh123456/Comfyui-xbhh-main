@@ -1,11 +1,17 @@
 from .lora_loader import XBHHMultiLoraLoader
+from .preset_selector import PresetSelector, NODE_CLASS_MAPPINGS as PS_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as PS_NODE_DISPLAY_NAME_MAPPINGS
+from .example_node import PromptRandomizer, NODE_CLASS_MAPPINGS as PR_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as PR_NODE_DISPLAY_NAME_MAPPINGS
 
 NODE_CLASS_MAPPINGS = {
     "XBHHMultiLoraLoader": XBHHMultiLoraLoader,
+    **PS_NODE_CLASS_MAPPINGS,
+    **PR_NODE_CLASS_MAPPINGS,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "XBHHMultiLoraLoader": "XBHH Multi Lora Loader 🎨",
+    **PS_NODE_DISPLAY_NAME_MAPPINGS,
+    **PR_NODE_DISPLAY_NAME_MAPPINGS,
 }
 
 WEB_DIRECTORY = "./web"
