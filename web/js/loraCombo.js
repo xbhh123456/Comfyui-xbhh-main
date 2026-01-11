@@ -343,27 +343,31 @@ function showLoraChooserDialog(event, callback) {
         dialog.style.top = `${window.innerHeight - rect.height - 10}px`;
     }
 
-    // 点击外部关闭
+    // 点击外部关闭弹窗
     const closeHandler = (e) => {
         if (!dialog.contains(e.target)) {
             hidePreview();
             dialog.remove();
-            document.removeEventListener("mousedown", closeHandler);
+            document.removeEventListener("pointerdown", closeHandler, true);
+            document.removeEventListener("keydown", escHandler);
         }
     };
-    setTimeout(() => {
-        document.addEventListener("mousedown", closeHandler);
-    }, 100);
-
-    // ESC键关闭
+    
+    // ESC 键关闭弹窗
     const escHandler = (e) => {
         if (e.key === "Escape") {
             hidePreview();
             dialog.remove();
+            document.removeEventListener("pointerdown", closeHandler, true);
             document.removeEventListener("keydown", escHandler);
         }
     };
-    document.addEventListener("keydown", escHandler);
+    
+    // 使用 requestAnimationFrame 确保在当前事件处理完成后再添加监听器
+    requestAnimationFrame(() => {
+        document.addEventListener("pointerdown", closeHandler, true);
+        document.addEventListener("keydown", escHandler);
+    });
 }
 
 // ============================================================================
@@ -393,15 +397,44 @@ app.registerExtension({
             this.loraWidgets = [];
             this.serialize_widgets = true;
             
-            this.addWidget("button", "➕ Add Lora", null, () => {
-                showLoraChooserDialog(window.event, value => {
-                    if (value && value !== "None") {
-                        this.addLoraRow(value);
-                    }
-                });
-            });
+            // 添加 LoRA 按钮 (自定义绘制)
+            const addLoraBtn = this.addWidget("custom", "➕ Add Lora", null, () => {});
+            addLoraBtn.computeSize = () => [this.size[0] - 20, 26];
+            addLoraBtn.draw = (ctx, node, w, posY, h) => {
+                const x = 10;
+                const y = posY;
+                const width = node.size[0] - 20;
+                const height = 24;
+                
+                // 绘制圆角背景
+                ctx.fillStyle = "#3a5a4a";
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 6);
+                ctx.fill();
+                
+                ctx.strokeStyle = "#585";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // 绘制文字（垂直居中）
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 12px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("➕ Add Lora", x + width / 2, y + height / 2);
+            };
+            addLoraBtn.mouse = (event, pos, node) => {
+                if (event.type === "pointerdown") {
+                    showLoraChooserDialog(event, value => {
+                        if (value && value !== "None") {
+                            node.addLoraRow(value);
+                        }
+                    });
+                    return true;
+                }
+                return false;
+            };
             
-            this.size[0] = Math.max(this.size[0] || 0, 300);
         };
 
         nodeType.prototype.addLoraRow = function(loraName) {
@@ -581,11 +614,39 @@ app.registerExtension({
                 }
             }
             
-            this.addWidget("button", "➕ Add Lora", null, () => {
-                showLoraChooserDialog(window.event, value => {
-                    if (value && value !== "None") this.addLoraRow(value);
-                });
-            });
+            // 添加 LoRA 按钮 (自定义绘制)
+            const addLoraBtn = this.addWidget("custom", "➕ Add Lora", null, () => {});
+            addLoraBtn.computeSize = () => [this.size[0] - 20, 26];
+            addLoraBtn.draw = (ctx, node, w, posY, h) => {
+                const x = 10;
+                const y = posY;
+                const width = node.size[0] - 20;
+                const height = 24;
+                
+                ctx.fillStyle = "#3a5a4a";
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 6);
+                ctx.fill();
+                
+                ctx.strokeStyle = "#585";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 12px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("➕ Add Lora", x + width / 2, y + height / 2);
+            };
+            addLoraBtn.mouse = (event, pos, node) => {
+                if (event.type === "pointerdown") {
+                    showLoraChooserDialog(event, value => {
+                        if (value && value !== "None") node.addLoraRow(value);
+                    });
+                    return true;
+                }
+                return false;
+            };
             
             configure?.apply(this, arguments);
         };

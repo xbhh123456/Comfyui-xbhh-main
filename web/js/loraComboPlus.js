@@ -560,25 +560,31 @@ function showLoraChooserDialog(event, callback) {
         dialog.style.top = `${window.innerHeight - rect.height - 10}px`;
     }
 
+    // 点击外部关闭弹窗
     const closeHandler = (e) => {
         if (!dialog.contains(e.target)) {
             hidePreview();
             dialog.remove();
-            document.removeEventListener("mousedown", closeHandler);
+            document.removeEventListener("pointerdown", closeHandler, true);
+            document.removeEventListener("keydown", escHandler);
         }
     };
-    setTimeout(() => {
-        document.addEventListener("mousedown", closeHandler);
-    }, 100);
-
+    
+    // ESC 键关闭弹窗
     const escHandler = (e) => {
         if (e.key === "Escape") {
             hidePreview();
             dialog.remove();
+            document.removeEventListener("pointerdown", closeHandler, true);
             document.removeEventListener("keydown", escHandler);
         }
     };
-    document.addEventListener("keydown", escHandler);
+    
+    // 使用 requestAnimationFrame 确保在当前事件处理完成后再添加监听器
+    requestAnimationFrame(() => {
+        document.addEventListener("pointerdown", closeHandler, true);
+        document.addEventListener("keydown", escHandler);
+    });
 }
 
 // ============================================================================
@@ -602,24 +608,103 @@ app.registerExtension({
             this.loraWidgets = [];
             this.serialize_widgets = true;
             
-            // 添加 LoRA 按钮
-            this.addWidget("button", "➕ Add Lora", null, () => {
-                showLoraChooserDialog(window.event, value => {
-                    if (value && value !== "None") {
-                        this.addLoraRow(value);
+            // 添加 LoRA 按钮 (自定义绘制)
+            const addLoraBtn = this.addWidget("custom", "➕ Add Lora", null, () => {});
+            addLoraBtn.computeSize = () => [this.size[0] - 20, 26];
+            addLoraBtn.draw = (ctx, node, w, posY, h) => {
+                const x = 10;
+                const y = posY;
+                const width = node.size[0] - 20;
+                const height = 24;
+                
+                // 绘制圆角背景
+                ctx.fillStyle = "#2d5a3d";
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 6);
+                ctx.fill();
+                
+                ctx.strokeStyle = "#5a8a6a";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                // 绘制文字（垂直居中）
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 12px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("➕ Add Lora", x + width / 2, y + height / 2);
+            };
+            addLoraBtn.mouse = (event, pos, node) => {
+                if (event.type === "pointerdown") {
+                    showLoraChooserDialog(event, value => {
+                        if (value && value !== "None") {
+                            node.addLoraRow(value);
+                        }
+                    });
+                    return true;
+                }
+                return false;
+            };
+            
+            // 导入/导出按钮合并为一行 (自定义绘制)
+            const presetBtns = this.addWidget("custom", "preset_buttons", null, () => {});
+            presetBtns.computeSize = () => [this.size[0] - 20, 26];
+            presetBtns.draw = (ctx, node, w, posY, h) => {
+                const x = 10;
+                const y = posY;
+                const totalWidth = node.size[0] - 20;
+                const height = 24;
+                const gap = 6;
+                const btnWidth = (totalWidth - gap) / 2;
+                
+                // 导出按钮
+                ctx.fillStyle = "#3a5a4a";
+                ctx.beginPath();
+                ctx.roundRect(x, y, btnWidth, height, 6);
+                ctx.fill();
+                ctx.strokeStyle = "#5a8a6a";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.fillStyle = "#ccc";
+                ctx.font = "11px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("📤 导出预设", x + btnWidth / 2, y + height / 2);
+                
+                // 导入按钮
+                const importX = x + btnWidth + gap;
+                ctx.fillStyle = "#3a5a4a";
+                ctx.beginPath();
+                ctx.roundRect(importX, y, btnWidth, height, 6);
+                ctx.fill();
+                ctx.strokeStyle = "#5a8a6a";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.fillStyle = "#ccc";
+                ctx.fillText("📥 导入预设", importX + btnWidth / 2, y + height / 2);
+            };
+            presetBtns.mouse = (event, pos, node) => {
+                if (event.type === "pointerdown") {
+                    const x = 10;
+                    const totalWidth = node.size[0] - 20;
+                    const gap = 6;
+                    const btnWidth = (totalWidth - gap) / 2;
+                    const localX = pos[0];
+                    
+                    if (localX >= x && localX <= x + btnWidth) {
+                        // 导出
+                        showPresetDialog(node, "export");
+                        return true;
+                    } else if (localX >= x + btnWidth + gap && localX <= x + totalWidth) {
+                        // 导入
+                        showPresetDialog(node, "import");
+                        return true;
                     }
-                });
-            });
-            
-            // 导出按钮
-            this.addWidget("button", "📤 导出预设", null, () => {
-                showPresetDialog(this, "export");
-            });
-            
-            // 导入按钮
-            this.addWidget("button", "📥 导入预设", null, () => {
-                showPresetDialog(this, "import");
-            });
+                }
+                return false;
+            };
             
             this.size[0] = Math.max(this.size[0] || 0, 320);
         };
@@ -639,29 +724,35 @@ app.registerExtension({
             widget.serializeValue = () => widget.value;
 
             widget.draw = (ctx, node, w, posY, h) => {
+                // 确保 widget.value 存在
+                if (!widget.value) {
+                    widget.value = { on: true, lora: null, strength: 1.0, strengthTwo: null };
+                }
+                
                 const x = 10;
                 const y = posY;
                 const width = node.size[0] - 20;
                 const height = 20;
                 const midY = y + height / 2;
 
-                ctx.fillStyle = widget.value.on ? "rgba(45, 90, 61, 0.9)" : "rgba(40, 40, 40, 0.9)";
+                const isOn = widget.value.on ?? true;
+                ctx.fillStyle = isOn ? "rgba(45, 90, 61, 0.9)" : "rgba(40, 40, 40, 0.9)";
                 ctx.beginPath();
                 ctx.roundRect(x, y, width, height, 3);
                 ctx.fill();
                 
-                ctx.strokeStyle = widget.value.on ? "#5a8a6a" : "#333";
+                ctx.strokeStyle = isOn ? "#5a8a6a" : "#333";
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
                 const toggleX = x + 4;
                 const toggleSize = 12;
-                ctx.fillStyle = widget.value.on ? "#6a6" : "#555";
+                ctx.fillStyle = isOn ? "#6a6" : "#555";
                 ctx.beginPath();
                 ctx.roundRect(toggleX, midY - toggleSize/2, toggleSize, toggleSize, 2);
                 ctx.fill();
                 
-                if (widget.value.on) {
+                if (isOn) {
                     ctx.fillStyle = "#fff";
                     ctx.font = "bold 9px Arial";
                     ctx.textAlign = "center";
@@ -671,7 +762,7 @@ app.registerExtension({
 
                 const name = widget.value.lora?.split(/[\/\\]/).pop() || "None";
                 const nameX = toggleX + toggleSize + 6;
-                ctx.fillStyle = widget.value.on ? "#ddd" : "#777";
+                ctx.fillStyle = isOn ? "#ddd" : "#777";
                 ctx.font = "11px Arial";
                 ctx.textAlign = "left";
                 ctx.textBaseline = "middle";
@@ -762,7 +853,7 @@ app.registerExtension({
             };
 
             // 将按钮移到最后
-            const btnNames = ["➕ Add Lora", "📤 导出预设", "📥 导入预设"];
+            const btnNames = ["➕ Add Lora", "preset_buttons"];
             const buttons = [];
             for (const name of btnNames) {
                 const idx = this.widgets.findIndex(w => w.name === name);
@@ -801,19 +892,95 @@ app.registerExtension({
                 }
             }
             
-            this.addWidget("button", "➕ Add Lora", null, () => {
-                showLoraChooserDialog(window.event, value => {
-                    if (value && value !== "None") this.addLoraRow(value);
-                });
-            });
+            // 添加 LoRA 按钮 (自定义绘制)
+            const addLoraBtn = this.addWidget("custom", "➕ Add Lora", null, () => {});
+            addLoraBtn.computeSize = () => [this.size[0] - 20, 26];
+            addLoraBtn.draw = (ctx, node, w, posY, h) => {
+                const x = 10;
+                const y = posY;
+                const width = node.size[0] - 20;
+                const height = 24;
+                
+                ctx.fillStyle = "#2d5a3d";
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 6);
+                ctx.fill();
+                
+                ctx.strokeStyle = "#5a8a6a";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 12px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("➕ Add Lora", x + width / 2, y + height / 2);
+            };
+            addLoraBtn.mouse = (event, pos, node) => {
+                if (event.type === "pointerdown") {
+                    showLoraChooserDialog(event, value => {
+                        if (value && value !== "None") node.addLoraRow(value);
+                    });
+                    return true;
+                }
+                return false;
+            };
             
-            this.addWidget("button", "📤 导出预设", null, () => {
-                showPresetDialog(this, "export");
-            });
-            
-            this.addWidget("button", "📥 导入预设", null, () => {
-                showPresetDialog(this, "import");
-            });
+            // 导入/导出按钮合并为一行
+            const presetBtns = this.addWidget("custom", "preset_buttons", null, () => {});
+            presetBtns.computeSize = () => [this.size[0] - 20, 26];
+            presetBtns.draw = (ctx, node, w, posY, h) => {
+                const x = 10;
+                const y = posY;
+                const totalWidth = node.size[0] - 20;
+                const height = 24;
+                const gap = 6;
+                const btnWidth = (totalWidth - gap) / 2;
+                
+                ctx.fillStyle = "#3a5a4a";
+                ctx.beginPath();
+                ctx.roundRect(x, y, btnWidth, height, 6);
+                ctx.fill();
+                ctx.strokeStyle = "#5a8a6a";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.fillStyle = "#ccc";
+                ctx.font = "11px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("📤 导出预设", x + btnWidth / 2, y + height / 2);
+                
+                const importX = x + btnWidth + gap;
+                ctx.fillStyle = "#3a5a4a";
+                ctx.beginPath();
+                ctx.roundRect(importX, y, btnWidth, height, 6);
+                ctx.fill();
+                ctx.strokeStyle = "#5a8a6a";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.fillStyle = "#ccc";
+                ctx.fillText("📥 导入预设", importX + btnWidth / 2, y + height / 2);
+            };
+            presetBtns.mouse = (event, pos, node) => {
+                if (event.type === "pointerdown") {
+                    const x = 10;
+                    const totalWidth = node.size[0] - 20;
+                    const gap = 6;
+                    const btnWidth = (totalWidth - gap) / 2;
+                    const localX = pos[0];
+                    
+                    if (localX >= x && localX <= x + btnWidth) {
+                        showPresetDialog(node, "export");
+                        return true;
+                    } else if (localX >= x + btnWidth + gap && localX <= x + totalWidth) {
+                        showPresetDialog(node, "import");
+                        return true;
+                    }
+                }
+                return false;
+            };
             
             configure?.apply(this, arguments);
         };
