@@ -43,7 +43,7 @@
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/你的用户名/xbhh-lora.git
+git clone https://github.com/xbhh123456/Comfyui-xbhh-main.git
 pip install -r xbhh-lora/requirements.txt
 ```
 
