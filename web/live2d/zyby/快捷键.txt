@@ -1,0 +1,17 @@
+(临时调整的按键)
+
+状态：
+丸子头 ctrl+q
+猫耳猫尾 ctrl+w
+拿麦克风 ctrl+e
+白丝 F1
+衣领 F2
+重置 ctrl+s
+
+表情：
+心心眼 ctrl+1
+星星眼 ctrl+2
+悲伤表情 ctrl+3
+圈圈眼 ctrl+4
+生气表情 ctrl+5
+鸡爪眼 ctrl+6

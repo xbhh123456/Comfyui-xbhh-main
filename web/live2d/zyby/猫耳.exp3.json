@@ -1,0 +1,25 @@
+{
+    "Type": "Live2D Expression",
+    "Parameters": [
+        {
+            "Id": "Param",
+            "Value": 1.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "Param237",
+            "Value": 1.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "Param251",
+            "Value": 1.0,
+            "Blend": "Add"
+        },
+        {
+            "Id": "Param_Angle_Rotation_1_ArtMesh572",
+            "Value": 0.0,
+            "Blend": "Add"
+        }
+    ]
+}

@@ -75,8 +75,8 @@ class XBHHMultiLoraLoaderPlus:
     - 导出/导入 LoRA 预设文本
     """
     
-    RETURN_TYPES = ("MODEL", "CLIP", "STRING")
-    RETURN_NAMES = ("MODEL", "CLIP", "preset_text")
+    RETURN_TYPES = ("MODEL", "CLIP", "STRING", "STRING")
+    RETURN_NAMES = ("MODEL", "CLIP", "preset_text", "triggers")
     FUNCTION = "load_loras"
     CATEGORY = "XBHH/loaders"
     
@@ -96,6 +96,8 @@ class XBHHMultiLoraLoaderPlus:
         
         # 收集预设文本用于导出
         preset_lines = []
+        # 收集触发词
+        trigger_words = []
         
         for key, value in kwargs.items():
             key_upper = key.upper()
@@ -112,10 +114,17 @@ class XBHHMultiLoraLoaderPlus:
                 is_on = value.get('on', False)
                 strength_model = value.get('strength', 1.0)
                 strength_clip = value.get('strengthTwo', strength_model)
+                trigger = value.get('trigger', '')
+                trigger_weight = value.get('triggerWeight', 1.0)
                 
-                # 生成预设行 (格式: enabled|lora_name|strength_model|strength_clip)
+                # 生成预设行 (格式: enabled|lora_name|strength_model|strength_clip|trigger|trigger_weight)
                 enabled_str = "1" if is_on else "0"
-                preset_lines.append(f"{enabled_str}|{lora_name}|{strength_model}|{strength_clip if strength_clip else strength_model}")
+                preset_lines.append(f"{enabled_str}|{lora_name}|{strength_model}|{strength_clip if strength_clip else strength_model}|{trigger}|{trigger_weight}")
+                
+                # 收集启用的触发词
+                if is_on and trigger:
+                    formatted_trigger = f"({trigger}:{trigger_weight:.2f})"
+                    trigger_words.append(formatted_trigger)
                 
                 if not is_on:
                     continue
@@ -141,8 +150,10 @@ class XBHHMultiLoraLoaderPlus:
         
         # 生成预设文本
         preset_text = "\n".join(preset_lines)
+        # 生成触发词文本
+        triggers_text = ", ".join(trigger_words)
         
-        return (model, clip, preset_text)
+        return (model, clip, preset_text, triggers_text)
 
 
 # 注册节点

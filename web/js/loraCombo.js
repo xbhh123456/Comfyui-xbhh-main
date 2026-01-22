@@ -445,7 +445,9 @@ app.registerExtension({
                 on: true,
                 lora: loraName,
                 strength: 1.0,
-                strengthTwo: null
+                strengthTwo: null,
+                trigger: "",
+                triggerWeight: 1.0
             }, () => {});
 
             widget.computeSize = () => [this.size[0] - 20, 22];
@@ -467,6 +469,7 @@ app.registerExtension({
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
+                // 开关 + LoRA名称 + 权重
                 const toggleX = x + 4;
                 const toggleSize = 12;
                 ctx.fillStyle = widget.value.on ? "#6a6" : "#555";
@@ -663,6 +666,27 @@ app.registerExtension({
                     options.unshift(
                         { content: "🗑️ 删除", callback: () => this.removeLoraWidget(w) },
                         { content: w.value.on ? "⚫ 禁用" : "🟢 启用", callback: () => { w.value.on = !w.value.on; this.setDirtyCanvas(true, true); } },
+                        { 
+                            content: "✏️ 设置触发词", 
+                            callback: () => {
+                                app.canvas.prompt("触发词", w.value.trigger || "", v => {
+                                    w.value.trigger = v;
+                                    this.setDirtyCanvas(true, true);
+                                });
+                            }
+                        },
+                        { 
+                            content: "⚖️ 设置触发词权重", 
+                            callback: () => {
+                                app.canvas.prompt("触发词权重 (0.0-2.0)", w.value.triggerWeight || 1.0, v => {
+                                    const parsed = parseFloat(v);
+                                    if (!isNaN(parsed)) {
+                                        w.value.triggerWeight = Math.max(0, Math.min(2.0, parsed));
+                                        this.setDirtyCanvas(true, true);
+                                    }
+                                });
+                            }
+                        },
                         null
                     );
                     break;

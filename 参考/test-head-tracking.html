@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live2D 头部追踪测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            cursor: crosshair;
+        }
+
+        #live-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .crosshair {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .controls button, .controls label {
+            padding: 10px 20px;
+            margin: 0 5px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            display: inline-block;
+        }
+
+        .controls button:hover, .controls label:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            max-width: 800px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .slider-group {
+            margin: 10px 0;
+            text-align: left;
+        }
+
+        .slider-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"] {
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 Live2D 头部追踪测试</h1>
+        <p>真夜白音 - 头部跟随鼠标移动</p>
+    </div>
+
+    <div id="canvas-container">
+        <canvas id="live-canvas"></canvas>
+        <div class="crosshair" id="crosshair"></div>
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div>加载中...</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="testExpression(0)">🎀 丸子头</button>
+        <button onclick="testExpression(1)">⭐ 星星眼</button>
+        <button onclick="testExpression(2)">❤️ 心心眼</button>
+        <button onclick="testMotion()">🌟 待机动作</button>
+        <label>
+            <input type="checkbox" id="showCrosshair" onchange="toggleCrosshair()"> 显示准星
+        </label>
+    </div>
+
+    <div class="controls">
+        <div class="slider-group">
+            <label>头部追踪灵敏度: <span id="sensitivity-value">1.0</span></label>
+            <input type="range" id="sensitivity" min="0.5" max="2.0" step="0.1" value="1.0" 
+                   oninput="updateSensitivity(this.value)">
+        </div>
+    </div>
+
+    <div class="info" id="info">
+        状态: 准备加载...<br>
+        <small>移动鼠标，观察模型头部是否跟随</small>
+    </div>
+
+    <script src="../lib/pixi.min.js"></script>
+    <script src="../lib/live2dcubismcore.min.js"></script>
+    <script src="../lib/pixi-live2d-display.min.js"></script>
+
+    <script>
+        window.PIXI = PIXI;
+        let app, model;
+        let sensitivity = 1.0;
+        
+        const canvas = document.getElementById('live-canvas');
+        const loading = document.getElementById('loading');
+        const infoEl = document.getElementById('info');
+        const crosshair = document.getElementById('crosshair');
+
+        function updateInfo(message) {
+            infoEl.innerHTML = message + '<br><small>移动鼠标，观察模型头部是否跟随</small>';
+            console.log(message);
+        }
+
+        async function init() {
+            try {
+                updateInfo('开始初始化...');
+
+                app = new PIXI.Application({
+                    view: canvas,
+                    autoStart: true,
+                    width: 800,
+                    height: 600,
+                    backgroundAlpha: 0,
+                });
+
+                updateInfo('加载 Live2D 模型...');
+
+                model = await PIXI.live2d.Live2DModel.from('../live2d/zyby/真夜白音.model3.json');
+                app.stage.addChild(model);
+
+                // 设置模型居中显示
+                model.anchor.set(0.5, 0.5);  // 设置锚点为中心
+                model.scale.set(0.15);
+                model.x = 400;  // canvas 宽度的一半 (800/2)
+                model.y = 500;  // 往下移动 200px (300 + 200)
+
+                loading.style.display = 'none';
+                updateInfo('<span style="color: #4caf50;">✅ 模型加载成功！</span>');
+
+                console.log('Model loaded:', model);
+                console.log('Core model:', model.internalModel.coreModel);
+
+                // 设置头部追踪
+                setupHeadTracking();
+
+                // 播放待机动作
+                try {
+                    model.motion('Idle');
+                } catch (e) {
+                    console.log('No Idle motion');
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                updateInfo(`<span style="color: #f44336;">❌ 加载失败: ${error.message}</span>`);
+            }
+        }
+
+        function setupHeadTracking() {
+            const container = document.getElementById('canvas-container');
+            const core = model.internalModel.coreModel;
+
+            // 查找头部相关参数
+            const angleXIndex = core.getParameterIndex('ParamAngleX');
+            const angleYIndex = core.getParameterIndex('ParamAngleY');
+            const angleZIndex = core.getParameterIndex('ParamAngleZ');
+
+            console.log('ParamAngleX index:', angleXIndex);
+            console.log('ParamAngleY index:', angleYIndex);
+            console.log('ParamAngleZ index:', angleZIndex);
+
+            if (angleXIndex === -1 && angleYIndex === -1) {
+                updateInfo('<span style="color: #ffa500;">⚠️ 模型不包含 ParamAngleX/Y，头部追踪可能不工作</span>');
+            }
+
+            container.addEventListener('mousemove', (e) => {
+                if (!model) return;
+
+                const rect = container.getBoundingClientRect();
+                
+                // 将鼠标位置转换为 -1 到 1 的范围
+                const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = ((e.clientY - rect.top) / rect.height) * 2 - 1;
+
+                // 更新准星位置
+                crosshair.style.left = e.clientX - rect.left + 'px';
+                crosshair.style.top = e.clientY - rect.top + 'px';
+
+                // 设置头部角度参数
+                // ParamAngleX: -30 到 30 度，控制左右转头
+                // ParamAngleY: -30 到 30 度，控制上下点头
+                const angleX = x * 30 * sensitivity;  // 左右转头
+                const angleY = -y * 30 * sensitivity; // 上下点头（反转 Y 轴）
+
+                if (angleXIndex !== -1) {
+                    core.setParameterValueByIndex(angleXIndex, angleX);
+                }
+                if (angleYIndex !== -1) {
+                    core.setParameterValueByIndex(angleYIndex, angleY);
+                }
+
+                // 可选：设置眼睛参数（如果存在）
+                const eyeBallXIndex = core.getParameterIndex('ParamEyeBallX');
+                const eyeBallYIndex = core.getParameterIndex('ParamEyeBallY');
+                
+                if (eyeBallXIndex !== -1) {
+                    core.setParameterValueByIndex(eyeBallXIndex, x);
+                }
+                if (eyeBallYIndex !== -1) {
+                    core.setParameterValueByIndex(eyeBallYIndex, y);
+                }
+
+                // 更新模型
+                model.internalModel.motionManager.update(0);
+            });
+
+            updateInfo('<span style="color: #4caf50;">✅ 头部追踪已启用！移动鼠标测试</span>');
+        }
+
+        function testExpression(index) {
+            if (!model) {
+                alert('模型未加载');
+                return;
+            }
+
+            try {
+                model.expression(index);
+                updateInfo(`<span style="color: #4caf50;">✅ 设置表情: ${index}</span>`);
+            } catch (e) {
+                updateInfo(`<span style="color: #f44336;">表情 ${index} 不可用</span>`);
+            }
+        }
+
+        function testMotion() {
+            if (!model) {
+                alert('模型未加载');
+                return;
+            }
+
+            try {
+                model.motion('Idle');
+                updateInfo('<span style="color: #4caf50;">✅ 播放待机动作</span>');
+            } catch (e) {
+                updateInfo('<span style="color: #f44336;">动作不可用</span>');
+            }
+        }
+
+        function toggleCrosshair() {
+            const show = document.getElementById('showCrosshair').checked;
+            crosshair.style.display = show ? 'block' : 'none';
+        }
+
+        function updateSensitivity(value) {
+            sensitivity = parseFloat(value);
+            document.getElementById('sensitivity-value').textContent = value;
+        }
+
+        window.addEventListener('load', init);
+
+        window.addEventListener('beforeunload', () => {
+            if (model) model.destroy();
+            if (app) app.destroy();
+        });
+    </script>
+</body>
+</html>

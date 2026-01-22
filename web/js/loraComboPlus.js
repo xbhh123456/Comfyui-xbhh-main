@@ -200,7 +200,9 @@ function showPresetDialog(node, mode) {
                 const lora = w.value.lora;
                 const strength = w.value.strength ?? 1.0;
                 const strengthTwo = w.value.strengthTwo ?? strength;
-                lines.push(`${enabled}|${lora}|${strength}|${strengthTwo}`);
+                const trigger = w.value.trigger || "";
+                const triggerWeight = w.value.triggerWeight ?? 1.0;
+                lines.push(`${enabled}|${lora}|${strength}|${strengthTwo}|${trigger}|${triggerWeight}`);
             }
         }
         textarea.value = lines.join("\n");
@@ -280,11 +282,15 @@ function showPresetDialog(node, mode) {
                         const loraName = parts[1];
                         const strength = parseFloat(parts[2]) || 1.0;
                         const strengthTwo = parseFloat(parts[3]) || strength;
+                        const trigger = parts[4] || "";
+                        const triggerWeight = parseFloat(parts[5]) || 1.0;
                         
                         const w = node.addLoraRow(loraName);
                         w.value.on = enabled;
                         w.value.strength = strength;
                         w.value.strengthTwo = strengthTwo;
+                        w.value.trigger = trigger;
+                        w.value.triggerWeight = triggerWeight;
                     }
                 }
                 
@@ -717,7 +723,9 @@ app.registerExtension({
                 on: true,
                 lora: loraName,
                 strength: 1.0,
-                strengthTwo: null
+                strengthTwo: null,
+                trigger: "",
+                triggerWeight: 1.0
             }, () => {});
 
             widget.computeSize = () => [this.size[0] - 20, 22];
@@ -726,7 +734,7 @@ app.registerExtension({
             widget.draw = (ctx, node, w, posY, h) => {
                 // 确保 widget.value 存在
                 if (!widget.value) {
-                    widget.value = { on: true, lora: null, strength: 1.0, strengthTwo: null };
+                    widget.value = { on: true, lora: null, strength: 1.0, strengthTwo: null, trigger: "", triggerWeight: 1.0 };
                 }
                 
                 const x = 10;
@@ -825,12 +833,14 @@ app.registerExtension({
                 }
                 
                 if (event.type === "pointerdown") {
+                    // 开关区域
                     if (localX >= margin && localX <= margin + 20) {
                         widget.value.on = !widget.value.on;
                         node.setDirtyCanvas(true, true);
                         return true;
                     }
                     
+                    // LoRA名称区域
                     if (localX >= margin + 24 && localX <= node.size[0] - 60) {
                         showLoraChooserDialog(event, value => {
                             if (value) {
@@ -841,6 +851,7 @@ app.registerExtension({
                         return true;
                     }
                     
+                    // 权重区域 - 开始拖拽
                     if (localX >= node.size[0] - 60) {
                         widget._isDragging = true;
                         widget._dragStartX = event.canvasX;
@@ -997,6 +1008,27 @@ app.registerExtension({
                     options.unshift(
                         { content: "🗑️ 删除", callback: () => this.removeLoraWidget(w) },
                         { content: w.value.on ? "⚫ 禁用" : "🟢 启用", callback: () => { w.value.on = !w.value.on; this.setDirtyCanvas(true, true); } },
+                        { 
+                            content: "✏️ 设置触发词", 
+                            callback: () => {
+                                app.canvas.prompt("触发词", w.value.trigger || "", v => {
+                                    w.value.trigger = v;
+                                    this.setDirtyCanvas(true, true);
+                                });
+                            }
+                        },
+                        { 
+                            content: "⚖️ 设置触发词权重", 
+                            callback: () => {
+                                app.canvas.prompt("触发词权重 (0.0-2.0)", w.value.triggerWeight || 1.0, v => {
+                                    const parsed = parseFloat(v);
+                                    if (!isNaN(parsed)) {
+                                        w.value.triggerWeight = Math.max(0, Math.min(2.0, parsed));
+                                        this.setDirtyCanvas(true, true);
+                                    }
+                                });
+                            }
+                        },
                         null
                     );
                     break;
@@ -1037,6 +1069,7 @@ app.registerExtension({
         // 背景样式
         const onDrawBackground = nodeType.prototype.onDrawBackground;
         nodeType.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
             onDrawBackground?.apply(this, arguments);
             
             const gradient = ctx.createLinearGradient(0, 0, 0, this.size[1]);

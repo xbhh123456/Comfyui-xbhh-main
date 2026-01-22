@@ -1,0 +1,80 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "真夜白音.moc3",
+		"Textures": [
+			"真夜白音.8192/texture_00.png"
+		],
+		"Physics": "真夜白音.physics3.json",
+		"DisplayInfo": "真夜白音.cdi3.json",
+		"Motions": {
+			"Idle": [
+				{
+					"File": "Idle.motion3.json"
+				}
+			]
+		},
+		"Expressions": [
+			{
+				"Name": "丸子头",
+				"File": "丸子头.exp3.json"
+			},
+			{
+				"Name": "星星眼",
+				"File": "星星眼.exp3.json"
+			},
+			{
+				"Name": "心心眼",
+				"File": "心心眼.exp3.json"
+			},
+			{
+				"Name": "生气表情",
+				"File": "生气表情.exp3.json"
+			},
+			{
+				"Name": "悲伤表情",
+				"File": "悲伤表情.exp3.json"
+			},
+			{
+				"Name": "猫耳",
+				"File": "猫耳.exp3.json"
+			},
+			{
+				"Name": "圈圈眼",
+				"File": "圈圈眼.exp3.json"
+			},
+			{
+				"Name": "鸡爪眼",
+				"File": "鸡爪眼.exp3.json"
+			},
+			{
+				"Name": "白丝",
+				"File": "白丝.exp3.json"
+			},
+			{
+				"Name": "拿麦克风",
+				"File": "拿麦克风.exp3.json"
+			},
+			{
+				"Name": "衣领",
+				"File": "衣领.exp3.json"
+			},
+			{
+				"Name": "重置",
+				"File": "重置.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		}
+	]
+}

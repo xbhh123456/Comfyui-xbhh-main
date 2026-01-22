@@ -252,6 +252,7 @@ app.registerExtension({
         // 背景样式
         const onDrawBackground = nodeType.prototype.onDrawBackground;
         nodeType.prototype.onDrawBackground = function(ctx) {
+            if (this.flags.collapsed) return;
             onDrawBackground?.apply(this, arguments);
             
             // 添加渐变背景
