@@ -1,0 +1,5 @@
+{
+    "enabled": true,
+    "version": "v2",
+    "description": "Live2D 隔离控制。enabled: 总开关; version: v4 (真夜白音 SDK 4.0), v2 (Pio SDK 2.0)"
+}

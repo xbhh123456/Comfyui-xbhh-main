@@ -1,6 +1,9 @@
 # XBHH Pet Module - 仅保留 CUI 虚拟货币和图片保存功能
 from .wallet import CUIWallet
 from .save_image_cui import XBHHSaveImageWithCUI
+from .live2d_api import Live2DApi
+
+Live2DApi.setup()
 
 NODE_CLASS_MAPPINGS = {
     "XBHHSaveImageWithCUI": XBHHSaveImageWithCUI,
