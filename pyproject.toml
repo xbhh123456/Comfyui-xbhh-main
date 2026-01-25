@@ -1,0 +1,21 @@
+[project]
+name = "comfyui-xbhh-lora"
+description = "A ComfyUI extension for Live2D Pet integration and enhanced LoRA management."
+version = "1.0.0"
+license = { text = "MIT" }
+authors = [
+    { name = "XBHH" }
+]
+dependencies = [
+    "openpyxl>=3.1.0"
+]
+readme = "README.md"
+keywords = ["comfyui", "live2d", "lora", "pet"]
+
+[project.urls]
+Repository = "https://github.com/xbhh123456/Comfyui-xbhh-main"
+
+[tool.comfy]
+PublisherId = "xbhh"
+DisplayName = "XBHH Live2D Pet & LoRA"
+Icon = ""
