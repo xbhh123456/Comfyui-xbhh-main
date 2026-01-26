@@ -17,6 +17,13 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
+      - name: Check for Registry Token
+        run: |
+          if [ -z "${{ secrets.REGISTRY_ACCESS_TOKEN }}" ]; then
+            echo "Error: REGISTRY_ACCESS_TOKEN is missing. Please add it to your GitHub Secrets."
+            exit 1
+          fi
+
       - name: Publish Custom Node
         uses: Comfy-Org/publish-node-action@main
         with:

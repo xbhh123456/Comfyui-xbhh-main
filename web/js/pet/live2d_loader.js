@@ -7,13 +7,16 @@ import { api } from "/scripts/api.js";
  */
 
 async function loadLive2DConfig() {
+    // 动态获取插件名
+    const url = new URL(import.meta.url);
+    const pathSegments = url.pathname.split('/');
+    const extensionsIdx = pathSegments.indexOf('extensions');
+    const extName = extensionsIdx !== -1 ? pathSegments[extensionsIdx + 1] : 'xbhh-lora';
+
     try {
-        // 直接尝试从根目录通过 api 读取配置文件
-        // 在 ComfyUI 扩展开发中，通常静态文件映射在 /extensions/xbhh-lora/
-        // 但为了方便用户操作开关，我们假定配置在后端映射可见路径
-        const response = await fetch("/extensions/xbhh-lora/js/pet/config_live2d.json?v=" + Date.now());
+        const response = await fetch(`/extensions/${extName}/js/pet/config_live2d.json?v=${Date.now()}`);
         if (!response.ok) {
-            console.error("[XBHH] Config not found at /extensions/xbhh-lora/js/pet/config_live2d.json");
+            console.warn(`[XBHH] Config not found at /extensions/${extName}/js/pet/config_live2d.json, using defaults.`);
             return { enabled: true, version: "v4" };
         }
         return await response.json();

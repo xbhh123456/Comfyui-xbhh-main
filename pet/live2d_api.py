@@ -13,6 +13,7 @@ class Live2DApi:
         @PromptServer.instance.routes.get("/xbhh/waifu-tips.json")
         async def get_waifu_tips(request):
             root_path = os.path.dirname(os.path.dirname(__file__))
+            ext_name = os.path.basename(root_path)
             # 原始 JSON 模板路径
             json_path = os.path.join(root_path, "web", "js", "pet", "waifu-tips.json")
             
@@ -29,7 +30,7 @@ class Live2DApi:
                 for m in scanned["v2"]:
                     v2_models.append({
                         "name": m["name"],
-                        "paths": [f"/extensions/xbhh-lora/live2d/v2/{m['name']}/{c}" for c in m["clothes"]],
+                        "paths": [f"/extensions/{ext_name}/live2d/v2/{m['name']}/{c}" for c in m["clothes"]],
                         "message": f"来自 {m['name']} 的动态加载模型 ~"
                     })
                 
@@ -43,8 +44,9 @@ class Live2DApi:
 
     @staticmethod
     def scan_models():
-        # 获取插件根目录 e:\桌面\1\xbhh-lora
+        # 获取插件根目录
         root_path = os.path.dirname(os.path.dirname(__file__))
+        ext_name = os.path.basename(root_path)
         # 模型存放在 web/live2d 下
         live2d_path = os.path.join(root_path, "web", "live2d")
         
@@ -74,7 +76,7 @@ class Live2DApi:
                             
                             models["v2"].append({
                                 "name": dirname,
-                                "path": f"/extensions/xbhh-lora/live2d/v2/{dirname}/model.json",
+                                "path": f"/extensions/{ext_name}/live2d/v2/{dirname}/model.json",
                                 "clothes": clothes
                             })
         
@@ -89,7 +91,7 @@ class Live2DApi:
                             if filename.endswith(".model3.json"):
                                 models["v5"].append({
                                     "name": dirname,
-                                    "path": f"/extensions/xbhh-lora/live2d/{v_dir}/{dirname}/{filename}"
+                                    "path": f"/extensions/{ext_name}/live2d/{v_dir}/{dirname}/{filename}"
                                 })
                                 break
         return models

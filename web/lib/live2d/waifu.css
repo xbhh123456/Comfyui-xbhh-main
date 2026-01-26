@@ -84,8 +84,8 @@
 	cursor: grab;
 	max-height: 500px;
 	max-width: 500px;
-	width: auto;
-	height: auto;
+	width: 100%;
+	height: 100%;
 	position: relative;
 }
 

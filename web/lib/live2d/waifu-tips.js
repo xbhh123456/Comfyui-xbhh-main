@@ -28,6 +28,7 @@ function i(t, s, i, n = !0) {
     (t = e(t)),
     sessionStorage.setItem("waifu-message-priority", String(i)));
   const a = document.getElementById("waifu-tips");
+  if (!a) return; // 修复：如果元素还没创建，直接返回
   ((a.innerHTML = t),
     a.classList.add("waifu-tips-active"),
     (o = setTimeout(() => {
@@ -450,6 +451,12 @@ async function r(t) {
           }),
           window.addEventListener("live2d:tapbody", () => {
             i(e(t.message.tapBody), 4e3, 9);
+          }),
+          window.addEventListener("live2d:click", () => {
+            i(e(t.message.click), 4e3, 9);
+          }),
+          window.addEventListener("live2d:drag", () => {
+            i(e(t.message.drag), 4e3, 9);
           }));
         const a = () => {};
         (console.log("%c", a),
@@ -529,6 +536,13 @@ async function r(t) {
 
             e.style.left = left + "px";
             e.style.top = top + "px";
+
+            // 触发拖拽对话 (频率限制 5s)
+            const now = Date.now();
+            if (!this._lastDragTipTime || now - this._lastDragTipTime > 5000) {
+                window.dispatchEvent(new CustomEvent("live2d:drag"));
+                this._lastDragTipTime = now;
+            }
           };
 
           const upHandler = () => {

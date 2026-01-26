@@ -6,9 +6,14 @@ import { app } from "/scripts/app.js";
  */
 export class Live2DV2Pet {
   constructor() {
-    this.libPath = "/extensions/xbhh-lora/lib/live2d/";
-    this.petPath = "/extensions/xbhh-lora/js/pet/";
-    this.modelBasePath = "/extensions/xbhh-lora/live2d/";
+    const url = new URL(import.meta.url);
+    const pathSegments = url.pathname.split('/');
+    const extensionsIdx = pathSegments.indexOf('extensions');
+    this.extName = extensionsIdx !== -1 ? pathSegments[extensionsIdx + 1] : 'xbhh-lora';
+
+    this.libPath = `/extensions/${this.extName}/lib/live2d/`;
+    this.petPath = `/extensions/${this.extName}/js/pet/`;
+    this.modelBasePath = `/extensions/${this.extName}/live2d/`;
     
     this.config = {
       visible: true,
@@ -37,6 +42,8 @@ export class Live2DV2Pet {
     // 同时也清理 V2 的样式
     const style = document.getElementById("waifu-css");
     if (style) style.remove();
+    const fixStyle = document.getElementById("xbhh-v2-fix-style");
+    if (fixStyle) fixStyle.remove();
   }
 
   onSwitchModel(e) {
@@ -82,7 +89,7 @@ export class Live2DV2Pet {
       localStorage.setItem("xbhh_live2d_version", "v5");
 
       // 3. 加载 V5
-      const { Live2DPet } = await import("./live2d_pet.js?v=" + Date.now());
+      const { Live2DPet } = await import(`/extensions/${this.extName}/js/pet/live2d_pet.js?v=${Date.now()}`);
       window.xbhhLive2DPet = new Live2DPet();
   }
 
@@ -107,13 +114,13 @@ export class Live2DV2Pet {
   loadExternalResource(url, type) {
     return new Promise((resolve, reject) => {
         let tag;
-        const ver = Date.now();
-        const finalUrl = url.includes('?') ? `${url}&v=${ver}` : `${url}?v=${ver}`;
+        const finalUrl = url.includes('?') ? url : `${url}?v=${Date.now()}`;
 
         if (type === 'css') {
             tag = document.createElement('link');
             tag.rel = 'stylesheet';
             tag.href = finalUrl;
+            tag.id = "waifu-css";
         } else if (type === 'js') {
             tag = document.createElement('script');
             // 原版是 module，但在 ComfyUI 某些库冲突下，核心驱动习惯作为全局脚本加载
@@ -150,8 +157,14 @@ export class Live2DV2Pet {
         if (typeof window.initWidget === 'function') {
             // 增加安全性检查：校验 localStorage 中的模型索引是否越界，并强制重置显示状态
             const checkAndFixConfig = async () => {
-                // 1. 强制重置显示隐藏状态，确保 ComfyUI 刷新后小人总能出现
+                // 1. 强制清理显示限制，确保每次刷新都尝试显示
                 localStorage.removeItem("waifu-display");
+                localStorage.removeItem("Comfy.MenuPosition.Docked");
+                // 确保样式强制可见
+                const style = document.createElement("style");
+                style.id = "xbhh-v2-fix-style";
+                style.innerHTML = "#waifu { display: block !important; }";
+                document.head.appendChild(style);
                 
                 try {
                     const resp = await fetch('/xbhh/live2d_models');
@@ -194,7 +207,11 @@ export class Live2DV2Pet {
             // 幸好我们可以在 waifu-tips.js 结尾看到 export { a as l }; 
             // 实际上我们可以通过调试发现，实例被绑定在了某些地方，或者我们直接修改 waifu-tips.js 暴露它。
             // 简单起见，我先尝试在 initWidget 之后绑定右键菜单。
-            setTimeout(() => this.initContextMenu(), 1000);
+            setTimeout(() => {
+                this.initSphere();
+                this.initContextMenu();
+                this.initInteractiveTips(); // 新增交互提示
+            }, 1000);
         } else {
             console.error("[XBHH] initWidget not found after import!");
         }
@@ -272,7 +289,7 @@ export class Live2DV2Pet {
           });
       }
 
-      if (data.v5 && data.v5.length > 0) {
+        if (data.v5 && data.v5.length > 0) {
           createSection("Live2D V5 Models");
           data.v5.forEach(m => {
               createItem(m.name, () => {
@@ -283,6 +300,18 @@ export class Live2DV2Pet {
           });
       }
 
+      createSection("Tools");
+      createItem("🔧 清理本地缓存", () => {
+          localStorage.removeItem("waifu-display");
+          localStorage.removeItem("modelId");
+          localStorage.removeItem("modelTexturesId");
+          localStorage.removeItem("waifu-pos");
+          localStorage.removeItem("Comfy.MenuPosition.Docked");
+          location.reload();
+      });
+      createItem("🎈 最小化小人", () => this.minimize());
+      createItem("🙈 隐藏小人", () => this.hide());
+
       document.body.appendChild(menu);
 
       const closeMenu = (e) => {
@@ -292,5 +321,143 @@ export class Live2DV2Pet {
           }
       };
       setTimeout(() => document.addEventListener("mousedown", closeMenu), 10);
+  }
+
+  initSphere() {
+      const waifu = document.getElementById("waifu");
+      if (!waifu) return;
+
+      this.sphere = document.createElement("div");
+      this.sphere.id = "xbhh-live2d-v2-sphere";
+      this.sphere.style.cssText = `
+          display: none;
+          position: absolute;
+          bottom: 20px;
+          left: 20px;
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #fa0 0%, #d48800 100%);
+          box-shadow: 0 4px 15px rgba(0,0,0,0.4), inset 0 2px 5px rgba(255,255,255,0.2);
+          border: 2px solid #fff;
+          cursor: pointer;
+          z-index: 10001;
+          text-align: center;
+          line-height: 46px;
+          font-size: 24px;
+          user-select: none;
+      `;
+      this.sphere.innerHTML = "🐱";
+      waifu.parentNode.appendChild(this.sphere);
+
+      // 实现拖拽功能
+      let isDragging = false;
+      let startX, startY;
+      let initialLeft, initialTop;
+
+      this.sphere.addEventListener("mousedown", (e) => {
+          if (e.button !== 0) return;
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          initialLeft = this.sphere.offsetLeft;
+          initialTop = this.sphere.offsetTop;
+          this.sphere.style.transition = "none";
+          e.stopPropagation();
+      });
+
+      window.addEventListener("mousemove", (e) => {
+          if (!isDragging) return;
+          const deltaX = e.clientX - startX;
+          const deltaY = e.clientY - startY;
+
+          let left = initialLeft + deltaX;
+          let top = initialTop + deltaY;
+
+          // 边界检查
+          const rect = this.sphere.getBoundingClientRect();
+          if (left < 0) left = 0;
+          if (top < 0) top = 0;
+          if (left > window.innerWidth - rect.width) left = window.innerWidth - rect.width;
+          if (top > window.innerHeight - rect.height) top = window.innerHeight - rect.height;
+
+          this.sphere.style.left = left + "px";
+          this.sphere.style.top = top + "px";
+      });
+
+      window.addEventListener("mouseup", (e) => {
+          if (isDragging) {
+              isDragging = false;
+              // 检查位移，如果位移很小则视为点击，触发恢复
+              const deltaX = Math.abs(e.clientX - startX);
+              const deltaY = Math.abs(e.clientY - startY);
+              if (deltaX < 5 && deltaY < 5) {
+                  this.restore();
+              }
+          }
+      });
+  }
+
+  initInteractiveTips() {
+      const waifu = document.getElementById("waifu");
+      const canvas = document.getElementById("live2d");
+      if (!waifu || !canvas) return;
+
+      this._lastDragTipTime = 0;
+
+      // 1. 双击对话
+      // 将单次点击改为双击触发，避免误触
+      canvas.addEventListener("dblclick", () => {
+          if (this.config.minimized) return;
+          window.dispatchEvent(new CustomEvent("live2d:click"));
+      });
+
+      // 2. 拖拽对话 (在 Live2DV2Pet 的拖拽逻辑中实现)
+      // 实际上 V2 的拖拽是在 mousedown 事件里定义的。我们需要重构一下那部分的监听。
+      // 但为了简单，我们可以直接在 window 的 mousemove 里检测是否正在拖拽 waifu。
+      // 查阅下方的 mousedown 逻辑。
+  }
+
+  minimize() {
+      const waifu = document.getElementById("waifu");
+      const canvas = document.getElementById("waifu-canvas");
+      const tools = document.getElementById("waifu-tool");
+      const tips = document.getElementById("waifu-tips");
+      if (waifu && this.sphere) {
+          waifu.style.pointerEvents = "none";
+          if (canvas) canvas.style.display = "none";
+          if (tools) tools.style.display = "none";
+          if (tips) {
+              tips.style.opacity = "0";
+              tips.style.display = "none";
+          }
+          this.sphere.style.display = "block";
+          this.config.minimized = true;
+          this.saveConfig();
+      }
+  }
+
+  restore() {
+      const waifu = document.getElementById("waifu");
+      const canvas = document.getElementById("waifu-canvas");
+      const tools = document.getElementById("waifu-tool");
+      const tips = document.getElementById("waifu-tips");
+      if (waifu && this.sphere) {
+          waifu.style.pointerEvents = "auto";
+          if (canvas) canvas.style.display = "block";
+          if (tools) tools.style.display = "flex";
+          if (tips) tips.style.display = "block";
+          this.sphere.style.display = "none";
+          this.config.minimized = false;
+          this.saveConfig();
+      }
+  }
+
+  hide() {
+      const waifu = document.getElementById("waifu");
+      if (waifu) waifu.style.display = "none";
+      if (this.sphere) this.sphere.style.display = "none";
+      
+      console.log("[XBHH] Live2D V2 hidden. Use right-click menu clear cache or manually clear localStorage to restore.");
   }
 }
