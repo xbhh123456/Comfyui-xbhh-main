@@ -1,0 +1,34 @@
+{
+	"Version": 3,
+	"Meta": {
+		"Duration": 1.4,
+		"Fps": 30.0,
+		"Loop": true,
+		"AreBeziersRestricted": false,
+		"CurveCount": 1,
+		"TotalSegmentCount": 2,
+		"TotalPointCount": 5,
+		"UserDataCount": 0,
+		"TotalUserDataSize": 0
+	},
+	"Curves": [
+		{
+			"Target": "Parameter",
+			"Id": "HandNormalButton3",
+			"Segments": [
+				0,
+				0,
+				1,
+				0.444,
+				0,
+				0.889,
+				1,
+				1.333,
+				1,
+				0,
+				1.4,
+				1
+			]
+		}
+	]
+}

@@ -200,17 +200,26 @@ export class Live2DV2Pet {
                 drag: true
             });
             console.log("[XBHH] V2 Widget Initialized successfully.");
-            
-            // 劫持实例以供外部调用
-            // 我们需要找到 c 类的实例。initCheck 返回了它。
-            // 但 waifu-tips.js 里的 initWidget 没暴露。
-            // 幸好我们可以在 waifu-tips.js 结尾看到 export { a as l }; 
-            // 实际上我们可以通过调试发现，实例被绑定在了某些地方，或者我们直接修改 waifu-tips.js 暴露它。
-            // 简单起见，我先尝试在 initWidget 之后绑定右键菜单。
+
+            // 劫持 Cubism2 渲染循环，降帧率到 15fps
+            this.throttleRenderLoop();
+
+            // 页面不可见时暂停渲染
+            this._onVisibilityChange = () => {
+                if (document.hidden) {
+                    this.pauseRenderLoop();
+                    console.log("[XBHH] V2 render paused (page hidden)");
+                } else if (!this.config.minimized) {
+                    this.throttleRenderLoop();
+                    console.log("[XBHH] V2 render resumed (page visible)");
+                }
+            };
+            document.addEventListener("visibilitychange", this._onVisibilityChange);
+
             setTimeout(() => {
                 this.initSphere();
                 this.initContextMenu();
-                this.initInteractiveTips(); // 新增交互提示
+                this.initInteractiveTips();
             }, 1000);
         } else {
             console.error("[XBHH] initWidget not found after import!");
@@ -243,84 +252,146 @@ export class Live2DV2Pet {
           top: ${y}px;
           background: rgba(30, 30, 30, 0.9);
           border: 1px solid #444;
-          border-radius: 8px;
-          padding: 10px 0;
+          border-radius: 6px;
+          padding: 5px 0;
           z-index: 10001;
           color: white;
-          font-size: 14px;
-          min-width: 150px;
+          font-family: "Microsoft YaHei", sans-serif;
+          font-size: 13px;
+          min-width: 120px;
           box-shadow: 0 4px 15px rgba(0,0,0,0.5);
           backdrop-filter: blur(5px);
       `;
 
-      const resp = await fetch("/xbhh/live2d_models");
-      const data = await resp.json();
-
-      const createSection = (title) => {
-          const header = document.createElement("div");
-          header.style.cssText = "padding: 5px 15px; color: #888; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #333; margin-bottom: 5px;";
-          header.innerText = title;
-          menu.appendChild(header);
-      };
-
-      const createItem = (text, callback) => {
-          const item = document.createElement("div");
-          item.style.cssText = "padding: 8px 20px; cursor: pointer; transition: background 0.2s;";
-          item.innerText = text;
-          item.onmouseover = () => { item.style.background = "#444"; };
-          item.onmouseout = () => { item.style.background = "transparent"; };
-          item.onclick = () => {
-              callback();
-              menu.remove();
-          };
-          menu.appendChild(item);
-      };
-
-      if (data.v2 && data.v2.length > 0) {
-          createSection("Live2D V2 Models");
-          data.v2.forEach(m => {
-              createItem(m.name, () => {
-                  // 这里我们需要 V2 的实例来切换。
-                  // 如果没有暴露，我们就用 xbhh-live2d-switch 事件
-                  window.dispatchEvent(new CustomEvent("xbhh-live2d-switch", {
-                      detail: { version: "v2", modelPath: m.path }
-                  }));
-              });
-          });
+      // 注入二级菜单样式（与V5统一）
+      const styleId = "xbhh-live2d-v2-menu-style";
+      if (!document.getElementById(styleId)) {
+          const style = document.createElement("style");
+          style.id = styleId;
+          style.textContent = `
+              .xbhh-v2-menu-item {
+                  padding: 8px 15px;
+                  cursor: pointer;
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  transition: background 0.2s;
+                  position: relative;
+              }
+              .xbhh-v2-menu-item:hover {
+                  background: #444;
+              }
+              .xbhh-v2-submenu {
+                  display: none;
+                  position: absolute;
+                  left: 100%;
+                  top: 0;
+                  background: rgba(30, 30, 30, 0.95);
+                  border: 1px solid #444;
+                  border-radius: 6px;
+                  padding: 5px 0;
+                  min-width: 100px;
+                  box-shadow: 4px 4px 15px rgba(0,0,0,0.5);
+              }
+              .xbhh-v2-menu-item:hover > .xbhh-v2-submenu,
+              .xbhh-v2-menu-item.active > .xbhh-v2-submenu {
+                  display: block;
+              }
+          `;
+          document.head.appendChild(style);
       }
 
-        if (data.v5 && data.v5.length > 0) {
-          createSection("Live2D V5 Models");
-          data.v5.forEach(m => {
-              createItem(m.name, () => {
-                  window.dispatchEvent(new CustomEvent("xbhh-live2d-switch", {
-                      detail: { version: "v5", modelPath: m.path }
+      const createItem = (text, action, hasSubmenu = false) => {
+          const div = document.createElement("div");
+          div.className = "xbhh-v2-menu-item";
+          div.innerHTML = `<span>${text}</span>${hasSubmenu ? '<span style="font-size:10px;margin-left:10px;">▶</span>' : ''}`;
+          if (!hasSubmenu && action) {
+              div.onclick = (e) => {
+                  e.stopPropagation();
+                  if (action) action();
+                  menu.remove();
+              };
+          }
+          return div;
+      };
+
+      // 1. 模型切换 — 二级子菜单
+      const modelItem = createItem("👤 模型切换", null, true);
+      const modelSubmenu = document.createElement("div");
+      modelSubmenu.className = "xbhh-v2-submenu";
+      modelItem.appendChild(modelSubmenu);
+      menu.appendChild(modelItem);
+
+      // 延迟加载模型列表
+      fetch("/xbhh/live2d_models").then(r => r.json()).then(data => {
+          if (data.v2 && data.v2.length > 0) {
+              const v2Header = document.createElement("div");
+              v2Header.style.cssText = "padding: 5px 15px; color: #888; font-size: 10px; border-bottom: 1px solid #333;";
+              v2Header.innerText = "SDK 2.0 (V2)";
+              modelSubmenu.appendChild(v2Header);
+              data.v2.forEach(m => {
+                  modelSubmenu.appendChild(createItem("· " + m.name, () => {
+                      window.dispatchEvent(new CustomEvent("xbhh-live2d-switch", {
+                          detail: { version: "v2", modelPath: m.path }
+                      }));
                   }));
               });
-          });
-      }
+          }
+          if (data.v5 && data.v5.length > 0) {
+              const v5Header = document.createElement("div");
+              v5Header.style.cssText = "padding: 5px 15px; color: #888; font-size: 10px; border-bottom: 1px solid #333; margin-top: 5px;";
+              v5Header.innerText = "SDK 4.0/5.0 (V5)";
+              modelSubmenu.appendChild(v5Header);
+              data.v5.forEach(m => {
+                  modelSubmenu.appendChild(createItem("· " + m.name, () => {
+                      window.dispatchEvent(new CustomEvent("xbhh-live2d-switch", {
+                          detail: { version: "v5", modelPath: m.path }
+                      }));
+                  }));
+              });
+          }
+      });
 
-      createSection("Tools");
-      createItem("🔧 清理本地缓存", () => {
+      // 2. 渲染帧率 — 二级子菜单
+      const fpsItem = createItem("🎬 渲染帧率", null, true);
+      const fpsSubmenu = document.createElement("div");
+      fpsSubmenu.className = "xbhh-v2-submenu";
+      const currentFPS = this.config.targetFPS || 30;
+      [10, 15, 24, 30, 60].forEach(fps => {
+          const label = fps === currentFPS ? `✓ ${fps} FPS` : `  ${fps} FPS`;
+          fpsSubmenu.appendChild(createItem(label, () => {
+              this.config.targetFPS = fps;
+              this.saveConfig();
+              this.pauseRenderLoop();
+              this._throttledDrawId = null;
+              this.throttleRenderLoop();
+          }));
+      });
+      fpsItem.appendChild(fpsSubmenu);
+      menu.appendChild(fpsItem);
+
+      // 3. 工具项 — 一级菜单直接操作
+      menu.appendChild(createItem("🔧 清理本地缓存", () => {
           localStorage.removeItem("waifu-display");
           localStorage.removeItem("modelId");
           localStorage.removeItem("modelTexturesId");
           localStorage.removeItem("waifu-pos");
           localStorage.removeItem("Comfy.MenuPosition.Docked");
           location.reload();
-      });
-      createItem("🎈 最小化小人", () => this.minimize());
-      createItem("🙈 隐藏小人", () => this.hide());
+      }));
+      menu.appendChild(createItem("🎈 最小化小人", () => this.minimize()));
+      menu.appendChild(createItem("🙈 隐藏小人", () => this.hide()));
 
       document.body.appendChild(menu);
 
+      // 点击菜单外部关闭
       const closeMenu = (e) => {
           if (!menu.contains(e.target)) {
               menu.remove();
-              document.removeEventListener("mousedown", closeMenu);
+              document.removeEventListener("pointerdown", closeMenu, true);
           }
       };
-      setTimeout(() => document.addEventListener("mousedown", closeMenu), 10);
+      setTimeout(() => document.addEventListener("pointerdown", closeMenu, true), 10);
   }
 
   initSphere() {
@@ -424,6 +495,10 @@ export class Live2DV2Pet {
       const tools = document.getElementById("waifu-tool");
       const tips = document.getElementById("waifu-tips");
       if (waifu && this.sphere) {
+          // 暂停渲染循环，释放 CPU
+          this.pauseRenderLoop();
+          console.log("[XBHH] V2 render paused (minimized)");
+
           waifu.style.pointerEvents = "none";
           if (canvas) canvas.style.display = "none";
           if (tools) tools.style.display = "none";
@@ -450,14 +525,126 @@ export class Live2DV2Pet {
           this.sphere.style.display = "none";
           this.config.minimized = false;
           this.saveConfig();
+
+          // 恢复渲染循环
+          this.throttleRenderLoop();
+          console.log("[XBHH] V2 render resumed (restored)");
       }
   }
 
   hide() {
+      // 持久化隐藏状态（loader 重启时会清除此标记）
+      localStorage.setItem("xbhh_live2d_hidden", "true");
+
+      console.log("[XBHH] Live2D V2 hiding: destroying instance to release CPU...");
+
+      // 停止节流渲染循环
+      this.pauseRenderLoop();
+
+      // 清理 visibilitychange 监听
+      if (this._onVisibilityChange) {
+          document.removeEventListener("visibilitychange", this._onVisibilityChange);
+      }
+
+      // 销毁 Cubism2/5 模型实例（停止 WebGL 渲染循环）
+      if (window.xbhhModelInstance) {
+          try {
+              if (window.xbhhModelInstance.cubism2model) {
+                  window.xbhhModelInstance.cubism2model.destroy();
+              }
+              if (window.xbhhModelInstance.cubism5model) {
+                  window.xbhhModelInstance.cubism5model.release();
+              }
+          } catch (e) {
+              console.warn("[XBHH] Error destroying model instance:", e);
+          }
+          window.xbhhModelInstance = null;
+      }
+
+      // 移除 DOM 元素
       const waifu = document.getElementById("waifu");
-      if (waifu) waifu.style.display = "none";
-      if (this.sphere) this.sphere.style.display = "none";
-      
-      console.log("[XBHH] Live2D V2 hidden. Use right-click menu clear cache or manually clear localStorage to restore.");
+      if (waifu) waifu.remove();
+      const toggle = document.getElementById("waifu-toggle");
+      if (toggle) toggle.remove();
+      if (this.sphere) { this.sphere.remove(); this.sphere = null; }
+
+      // 清理样式
+      const style = document.getElementById("waifu-css");
+      if (style) style.remove();
+      const fixStyle = document.getElementById("xbhh-v2-fix-style");
+      if (fixStyle) fixStyle.remove();
+
+      // 清理事件监听器
+      if (this._onSwitchModel) {
+          window.removeEventListener("xbhh-live2d-switch", this._onSwitchModel);
+      }
+
+      console.log("[XBHH] Live2D V2 instance destroyed. Will re-enable on next restart.");
   }
+
+
+  /**
+   * 劫持 Cubism2 的 requestAnimationFrame 渲染循环，限制到 15fps
+   */
+  throttleRenderLoop() {
+      // 如果已有节流循环在运行，不要重复创建
+      if (this._throttledDrawId) return;
+
+      const checkAndThrottle = () => {
+          if (window.xbhhModelInstance && window.xbhhModelInstance.cubism2model) {
+              const cubism2 = window.xbhhModelInstance.cubism2model;
+              // 停止原始 60fps 循环
+              if (cubism2._drawFrameId) {
+                  window.cancelAnimationFrame(cubism2._drawFrameId);
+                  cubism2._drawFrameId = null;
+              }
+              cubism2.isDrawStart = false;
+
+              // 用节流循环替代（从 config 读取帧率，默认 30fps）
+              const targetFPS = this.config.targetFPS || 30;
+              const frameInterval = 1000 / targetFPS;
+              let lastFrameTime = 0;
+
+              const throttledDraw = (timestamp) => {
+                  this._throttledDrawId = window.requestAnimationFrame(throttledDraw);
+                  const elapsed = timestamp - lastFrameTime;
+                  if (elapsed >= frameInterval) {
+                      lastFrameTime = timestamp - (elapsed % frameInterval);
+                      try {
+                          cubism2.draw();
+                      } catch(e) {
+                          // 忽略渲染错误
+                      }
+                  }
+              };
+              this._throttledDrawId = window.requestAnimationFrame(throttledDraw);
+              console.log(`[XBHH] Cubism2 render loop throttled to ${targetFPS}fps`);
+          } else {
+              // 引擎尚未就绪，稍后重试
+              setTimeout(checkAndThrottle, 500);
+          }
+      };
+      // 给 initWidget 一些初始化时间
+      setTimeout(checkAndThrottle, 2000);
+  }
+
+  /**
+   * 暂停渲染循环
+   */
+  pauseRenderLoop() {
+      if (this._throttledDrawId) {
+          window.cancelAnimationFrame(this._throttledDrawId);
+          this._throttledDrawId = null;
+      }
+      // 也确保原始循环被停止
+      if (window.xbhhModelInstance && window.xbhhModelInstance.cubism2model) {
+          const cubism2 = window.xbhhModelInstance.cubism2model;
+          if (cubism2._drawFrameId) {
+              window.cancelAnimationFrame(cubism2._drawFrameId);
+              cubism2._drawFrameId = null;
+          }
+          cubism2.isDrawStart = false;
+      }
+  }
+
 }

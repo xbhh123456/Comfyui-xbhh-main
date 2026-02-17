@@ -87,11 +87,12 @@ class XBHHMultiLoraLoaderPlus:
             "optional": FlexibleOptionalInputType(type=any_type, data={
                 "model": ("MODEL",),
                 "clip": ("CLIP",),
+                "lora_preset": ("STRING", {"forceInput": True}),
             }),
             "hidden": {},
         }
     
-    def load_loras(self, model=None, clip=None, **kwargs):
+    def load_loras(self, model=None, clip=None, lora_preset=None, **kwargs):
         """循环加载所有启用的LoRA"""
         
         # 收集预设文本用于导出
@@ -99,6 +100,31 @@ class XBHHMultiLoraLoaderPlus:
         # 收集触发词
         trigger_words = []
         
+        # 1. 先处理来自外部输入的 lora_preset
+        if lora_preset and isinstance(lora_preset, str):
+            lines = lora_preset.strip().split('\n')
+            for line in lines:
+                parts = line.split('|')
+                if len(parts) >= 2:
+                    is_on = parts[0] == "1"
+                    lora_name = parts[1]
+                    strength_model = float(parts[2]) if len(parts) > 2 else 1.0
+                    strength_clip = float(parts[3]) if len(parts) > 3 else strength_model
+                    trigger = parts[4] if len(parts) > 4 else ""
+                    trigger_weight = float(parts[5]) if len(parts) > 5 else 1.0
+                    
+                    # 模拟成接下来统一处理的格式
+                    tag = f"PRESET_{lora_name}"
+                    kwargs[tag] = {
+                        "on": is_on,
+                        "lora": lora_name,
+                        "strength": strength_model,
+                        "strengthTwo": strength_clip,
+                        "trigger": trigger,
+                        "triggerWeight": trigger_weight
+                    }
+
+        # 2. 处理所有输入（包括预设和手动挂件）
         for key, value in kwargs.items():
             key_upper = key.upper()
             

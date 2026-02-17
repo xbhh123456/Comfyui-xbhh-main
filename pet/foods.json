@@ -1,0 +1,56 @@
+{
+    "Legendary": {
+        "price": 10,
+        "tier_name": "传奇",
+        "items": [
+            "chatgpt",
+            "apple",
+            "windows",
+            "linux",
+            "rust"
+        ]
+    },
+    "Epic": {
+        "price": 5,
+        "tier_name": "史诗",
+        "items": [
+            "python",
+            "javascript",
+            "react",
+            "vue",
+            "go",
+            "java",
+            "photoshop",
+            "mysql",
+            "redis"
+        ]
+    },
+    "Rare": {
+        "price": 3,
+        "tier_name": "稀有",
+        "items": [
+            "c++",
+            "c#",
+            "typescript",
+            "spring",
+            "kafka",
+            "nginx",
+            "vscode",
+            "navicat"
+        ]
+    },
+    "Common": {
+        "price": 1,
+        "tier_name": "普通",
+        "items": [
+            "c",
+            "php",
+            "android",
+            "chrome",
+            "vite",
+            "ubuntu",
+            "navicat",
+            "pinia"
+        ]
+    }
+}

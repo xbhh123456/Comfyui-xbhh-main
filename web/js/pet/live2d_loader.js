@@ -42,6 +42,13 @@ app.registerExtension({
             return;
         }
 
+        // 检查是否被用户隐藏（隐藏=关闭，重启时清除隐藏标记，正常启动）
+        const wasHidden = localStorage.getItem("xbhh_live2d_hidden");
+        if (wasHidden === "true") {
+            localStorage.removeItem("xbhh_live2d_hidden");
+            console.log("[XBHH] Live2D was hidden last session, re-enabling on restart.");
+        }
+
         console.log(`[XBHH] Initializing Live2D Loader (Version: ${config.version})`);
         const verSuffix = "?v=" + Date.now();
 
@@ -49,11 +56,13 @@ app.registerExtension({
         try {
             if (config.version === "v2") {
                 const { Live2DV2Pet } = await import("./live2d_v2_pet.js" + verSuffix);
-                if (!document.getElementById("xbhh-live2d-v2-container")) {
+                // V2 默认生成的容器 ID 是 waifu
+                if (!document.getElementById("waifu")) {
                     window.xbhhLive2DPet = new Live2DV2Pet();
                 }
             } else {
                 const { Live2DPet } = await import("./live2d_pet.js" + verSuffix);
+                // V5 生成的容器 ID 是 xbhh-live2d-container
                 if (!document.getElementById("xbhh-live2d-container")) {
                     window.xbhhLive2DPet = new Live2DPet();
                 }

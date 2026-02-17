@@ -180,6 +180,20 @@ class c {
             if (!isReady()) a.error("Live2D core (or AMotion) not ready after retry.");
             const { default: e } = await import("./chunk/xbhh.js");
             this.cubism2model = new e();
+            
+            // 修复：劫持 followPointer 和 modelTurnHead，防止在模型尚未加载完成时调用 hitTest 报错
+            const originalFollowPointer = this.cubism2model.followPointer;
+            this.cubism2model.followPointer = function(e) {
+                if (this.live2DMgr && this.live2DMgr.model) {
+                    originalFollowPointer.call(this, e);
+                }
+            };
+            const originalModelTurnHead = this.cubism2model.modelTurnHead;
+            this.cubism2model.modelTurnHead = function(e) {
+                if (this.live2DMgr && this.live2DMgr.model) {
+                    originalModelTurnHead.call(this, e);
+                }
+            };
           }
           (3 === this.currentModelVersion &&
             (this.cubism5model.release(), this.resetCanvas()),

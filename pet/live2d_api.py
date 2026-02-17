@@ -3,12 +3,71 @@ import json
 from server import PromptServer
 from aiohttp import web
 
+from .wallet import get_wallet
+
 class Live2DApi:
     @classmethod
     def setup(cls):
         @PromptServer.instance.routes.get("/xbhh/live2d_models")
         async def get_models(request):
             return web.json_response(cls.scan_models())
+
+        @PromptServer.instance.routes.get("/xbhh/wallet/stats")
+        async def get_wallet_stats(request):
+            wallet = get_wallet()
+            return web.json_response(wallet.get_stats())
+
+        @PromptServer.instance.routes.get("/xbhh/pet/foods")
+        async def get_foods(request):
+            root_path = os.path.dirname(os.path.dirname(__file__))
+            data_path = os.path.join(root_path, "data", "foods")
+            config_path = os.path.join(root_path, "pet", "foods.json")
+            
+            # 加载配置
+            food_config = {}
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as f:
+                    food_config = json.load(f)
+
+            foods = []
+            if os.path.exists(data_path):
+                for filename in os.listdir(data_path):
+                    if filename.endswith(".png"):
+                        name = os.path.splitext(filename)[0]
+                        price, tier = cls.get_food_details_from_config(name, food_config)
+                        foods.append({
+                            "id": filename,
+                            "name": name,
+                            "price": price,
+                            "tier": tier,
+                            "url": f"/xbhh/data/foods/{filename}"
+                        })
+            return web.json_response(foods)
+
+        @PromptServer.instance.routes.post("/xbhh/pet/feed")
+        async def feed_pet(request):
+            try:
+                post_data = await request.json()
+                food_id = post_data.get("food_id")
+                food_name = post_data.get("food_name", food_id)
+                price = post_data.get("price", 1)
+                
+                wallet = get_wallet()
+                if wallet.spend(price, food_id, food_name):
+                    return web.json_response({"success": True, "balance": wallet.get_balance()})
+                else:
+                    return web.json_response({"success": False, "message": "CUI 余额不足"}, status=400)
+            except Exception as e:
+                return web.json_response({"success": False, "message": str(e)}, status=500)
+
+        @PromptServer.instance.routes.get("/xbhh/data/foods/{filename}")
+        async def get_food_file(request):
+            filename = request.match_info['filename']
+            root_path = os.path.dirname(os.path.dirname(__file__))
+            file_path = os.path.join(root_path, "data", "foods", filename)
+            if os.path.exists(file_path):
+                return web.FileResponse(file_path)
+            return web.Response(status=404)
 
         @PromptServer.instance.routes.get("/xbhh/waifu-tips.json")
         async def get_waifu_tips(request):
@@ -41,6 +100,14 @@ class Live2DApi:
             except Exception as e:
                 print(f"[XBHH] Error generating dynamic waifu-tips.json: {e}")
                 return web.Response(status=500)
+
+    @staticmethod
+    def get_food_details_from_config(name: str, config: dict):
+        name_lower = name.lower()
+        for tier_key, tier_info in config.items():
+            if name_lower in [i.lower() for i in tier_info.get("items", [])]:
+                return tier_info.get("price", 1), tier_info.get("tier_name", "普通")
+        return 1, "普通"
 
     @staticmethod
     def scan_models():

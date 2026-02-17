@@ -1,0 +1,96 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "云吞kumo.moc3",
+		"Textures": [
+			"云吞kumo.4096/texture_00.png",
+			"云吞kumo.4096/texture_01.png",
+			"云吞kumo.4096/texture_02.png",
+			"云吞kumo.4096/texture_03.png",
+			"云吞kumo.4096/texture_04.png",
+			"云吞kumo.4096/texture_05.png",
+			"云吞kumo.4096/texture_06.png",
+			"云吞kumo.4096/texture_07.png",
+			"云吞kumo.4096/texture_08.png",
+			"云吞kumo.4096/texture_09.png",
+			"云吞kumo.4096/texture_10.png"
+		],
+		"Physics": "云吞kumo.physics3.json",
+		"DisplayInfo": "云吞kumo.cdi3.json",
+		"Motions": {
+			"Idle": [
+				{
+					"File": "IDLE.motion3.json"
+				},
+				{
+					"File": "红温.motion3.json"
+				}
+			]
+		},
+		"Expressions": [
+			{
+				"Name": "Zzz.exp3",
+				"File": "expressions/Zzz.exp3.json"
+			},
+			{
+				"Name": "哭泣.exp3",
+				"File": "expressions/哭泣.exp3.json"
+			},
+			{
+				"Name": "手柄.exp3",
+				"File": "expressions/手柄.exp3.json"
+			},
+			{
+				"Name": "无语.exp3",
+				"File": "expressions/无语.exp3.json"
+			},
+			{
+				"Name": "水印.exp3",
+				"File": "expressions/水印.exp3.json"
+			},
+			{
+				"Name": "流汗.exp3",
+				"File": "expressions/流汗.exp3.json"
+			},
+			{
+				"Name": "爱心.exp3",
+				"File": "expressions/爱心.exp3.json"
+			},
+			{
+				"Name": "生气.exp3",
+				"File": "expressions/生气.exp3.json"
+			},
+			{
+				"Name": "瞳孔缩小.exp3",
+				"File": "expressions/瞳孔缩小.exp3.json"
+			},
+			{
+				"Name": "脸红.exp3",
+				"File": "expressions/脸红.exp3.json"
+			},
+			{
+				"Name": "脸黑.exp3",
+				"File": "expressions/脸黑.exp3.json"
+			},
+			{
+				"Name": "问号.exp3",
+				"File": "expressions/问号.exp3.json"
+			}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		}
+	]
+}
