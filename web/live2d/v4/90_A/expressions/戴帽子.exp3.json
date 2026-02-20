@@ -1,0 +1,10 @@
+{
+    "Type": "Live2D Expression",
+    "Parameters": [
+        {
+            "Id": "ParamCheek44",
+            "Value": -3.0,
+            "Blend": "Add"
+        }
+    ]
+}

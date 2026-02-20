@@ -33,6 +33,11 @@ export class Live2DPet {
     this.resizerSize = { w: 0, h: 0 };
     this.resizerStart = { x: 0, y: 0 };
 
+    this.motions = {};
+    this.motionKeybinds = {};
+    this.activeExpressions = new Set();
+    this.loadMotionKeybinds();
+
     this.loadConfig();
     this.init();
   }
@@ -394,15 +399,28 @@ export class Live2DPet {
       // 初始化提示语系统
       this.initTips();
 
-      // 提取表情列表
+      // 提取表情列表并预加载表情参数数据
       this.expressions = [];
+      this.expressionData = []; // 缓存每个表情的参数定义
+      this.activeExpressions = new Set();
       const settings = this.model.internalModel.settings;
       if (settings && (settings.expressions || settings.Expressions)) {
         const rawExprs = settings.expressions || settings.Expressions;
         this.expressions = rawExprs.map(
           (exp) => exp.name || exp.Name || "Unknown",
         );
+        // 异步加载所有表情文件的参数定义
+        this._loadExpressionData(rawExprs);
       }
+
+      // 提取动画列表
+      this.motions = {};
+      if (settings && settings.motions) {
+        this.motions = settings.motions;
+        console.log(`[XBHH] Found ${Object.keys(this.motions).length} motion groups`);
+      }
+
+      this.bindMotionKeyListener();
 
       // 绑定点击交互 (Hit Test) - 注意：穿透模式下此监听将失效，这是符合预期的
       this.model.on("pointerdown", (e) => {
@@ -770,12 +788,42 @@ export class Live2DPet {
     const expItem = createItem("🎭 表情", null, true);
     const expSubmenu = document.createElement("div");
     expSubmenu.className = "xbhh-live2d-submenu";
-    expSubmenu.style.maxHeight = "300px";
+    expSubmenu.style.maxHeight = "500px";
     expSubmenu.style.overflowY = "auto";
+    expSubmenu.style.minWidth = "180px";
 
     if (this.expressions && this.expressions.length > 0) {
+      // 全部取消按钮
+      const clearAllItem = document.createElement("div");
+      clearAllItem.className = "xbhh-live2d-menu-item";
+      clearAllItem.innerHTML = `<span style="color:#ef5350;">🗑️ 清除所有表情</span>`;
+      clearAllItem.onclick = (e) => {
+        e.stopPropagation();
+        this.clearAllExpressions();
+        if (menu.parentNode) document.body.removeChild(menu);
+      };
+      if (this.activeExpressions.size > 0) {
+        expSubmenu.appendChild(clearAllItem);
+        const sep = document.createElement("div");
+        sep.style.cssText = "border-top: 1px solid #444; margin: 4px 0;";
+        expSubmenu.appendChild(sep);
+      }
+
       this.expressions.forEach((name, index) => {
-        const item = createItem(name, () => this.setExpression(index));
+        const isActive = this.activeExpressions.has(index);
+        const label = isActive ? `✓ ${name}` : `   ${name}`;
+        const item = document.createElement("div");
+        item.className = "xbhh-live2d-menu-item";
+        item.innerHTML = `<span>${label}</span>`;
+        if (isActive) {
+          item.style.color = "#66bb6a";
+          item.style.background = "rgba(102, 187, 106, 0.1)";
+        }
+        item.onclick = (e) => {
+          e.stopPropagation();
+          this.toggleExpression(index, name);
+          if (menu.parentNode) document.body.removeChild(menu);
+        };
         expSubmenu.appendChild(item);
       });
     } else {
@@ -786,6 +834,100 @@ export class Live2DPet {
     }
     expItem.appendChild(expSubmenu);
     menu.appendChild(expItem);
+
+    // 1.5 动画菜单
+    const motionItem = createItem("🎬 动画", null, true);
+    const motionSubmenu = document.createElement("div");
+    motionSubmenu.className = "xbhh-live2d-submenu";
+    motionSubmenu.style.maxHeight = "400px";
+    motionSubmenu.style.overflowY = "auto";
+    motionSubmenu.style.minWidth = "180px";
+    const motionGroups = Object.keys(this.motions || {}).filter(g => g.toLowerCase() !== "idle");
+    if (motionGroups.length > 0) {
+      motionGroups.forEach((group) => {
+        const keybind = Object.entries(this.motionKeybinds).find(([k, v]) => v === group);
+        const keyLabel = keybind ? ` [${keybind[0]}]` : "";
+
+        const itemDiv = document.createElement("div");
+        itemDiv.className = "xbhh-live2d-menu-item";
+        itemDiv.style.display = "flex";
+        itemDiv.style.justifyContent = "space-between";
+        itemDiv.style.alignItems = "center";
+        itemDiv.style.gap = "8px";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.style.flex = "1";
+        nameSpan.style.cursor = "pointer";
+        nameSpan.textContent = group + keyLabel;
+        nameSpan.onclick = (e) => {
+          e.stopPropagation();
+          this.playMotion(group);
+          if (menu.parentNode) document.body.removeChild(menu);
+        };
+
+        const keyBtn = document.createElement("span");
+        keyBtn.textContent = "⌨";
+        keyBtn.title = "绑定快捷键";
+        keyBtn.style.cssText = "cursor:pointer; font-size:14px; opacity:0.6; padding:2px 4px; border-radius:3px; transition: all 0.2s;";
+        keyBtn.onmouseenter = () => { keyBtn.style.opacity = "1"; keyBtn.style.background = "rgba(255,255,255,0.1)"; };
+        keyBtn.onmouseleave = () => { keyBtn.style.opacity = "0.6"; keyBtn.style.background = "none"; };
+        keyBtn.onclick = (e) => {
+          e.stopPropagation();
+          nameSpan.textContent = group + " ⏳ 请按组合键...";
+          nameSpan.style.color = "#4fc3f7";
+          const onKey = (ev) => {
+            if (["Control", "Shift", "Alt", "Meta"].includes(ev.key)) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            const combo = this._buildKeyCombo(ev);
+            for (const [k, v] of Object.entries(this.motionKeybinds)) {
+              if (k === combo || v === group) delete this.motionKeybinds[k];
+            }
+            this.motionKeybinds[combo] = group;
+            this.saveMotionKeybinds();
+            nameSpan.textContent = group + ` [${combo}]`;
+            nameSpan.style.color = "#66bb6a";
+            this.showMessage(`快捷键 [${combo}] 已绑定到动画 "${group}"`, 3000, 10);
+            setTimeout(() => { nameSpan.style.color = ""; }, 1500);
+            window.removeEventListener("keydown", onKey, true);
+          };
+          window.addEventListener("keydown", onKey, true);
+        };
+
+        itemDiv.appendChild(nameSpan);
+        itemDiv.appendChild(keyBtn);
+        motionSubmenu.appendChild(itemDiv);
+      });
+
+      if (Object.keys(this.motionKeybinds).length > 0) {
+        const sep = document.createElement("div");
+        sep.style.cssText = "border-top: 1px solid #444; margin: 4px 0;";
+        motionSubmenu.appendChild(sep);
+        const clearItem = createItem("🗑️ 清除所有快捷键", () => {
+          this.motionKeybinds = {};
+          this.saveMotionKeybinds();
+          this.showMessage("已清除所有动画快捷键", 2000, 10);
+        });
+        clearItem.style.color = "#ef5350";
+        motionSubmenu.appendChild(clearItem);
+      }
+
+      // 恢复初始化选项
+      const resetSep = document.createElement("div");
+      resetSep.style.cssText = "border-top: 1px solid #444; margin: 4px 0;";
+      motionSubmenu.appendChild(resetSep);
+      const resetItem = createItem("🔄 恢复初始化", () => {
+        this.resetMotion();
+      });
+      resetItem.style.color = "#4fc3f7";
+      motionSubmenu.appendChild(resetItem);
+    } else {
+      const ph = createItem("（未检测到动画）", null);
+      ph.style.color = "#888";
+      motionSubmenu.appendChild(ph);
+    }
+    motionItem.appendChild(motionSubmenu);
+    menu.appendChild(motionItem);
 
     // 2. 灵敏度
     const sensItem = createItem("📏 灵敏度", null, true);
@@ -1192,6 +1334,283 @@ export class Live2DPet {
     }
   }
 
+  // 异步加载所有表情文件的参数数据
+  async _loadExpressionData(rawExprs) {
+    const modelPath = this.config.modelPath;
+    const basePath = modelPath.substring(0, modelPath.lastIndexOf("/") + 1);
+    
+    this.expressionData = new Array(rawExprs.length).fill(null);
+    
+    const promises = rawExprs.map(async (exp, index) => {
+      const file = exp.file || exp.File;
+      if (!file) return;
+      try {
+        const url = basePath + file;
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const data = await resp.json();
+          this.expressionData[index] = data.Parameters || [];
+          console.log(`[XBHH] Loaded expression data: ${this.expressions[index]} (${(data.Parameters || []).length} params)`);
+        }
+      } catch (e) {
+        console.warn(`[XBHH] Failed to load expression file for ${this.expressions[index]}:`, e);
+      }
+    });
+    
+    await Promise.all(promises);
+    console.log(`[XBHH] All expression data loaded: ${this.expressionData.filter(d => d).length}/${rawExprs.length}`);
+  }
+
+  toggleExpression(index, name) {
+    if (!this.model) return;
+    try {
+      if (this.activeExpressions.has(index)) {
+        this.activeExpressions.delete(index);
+        this.showMessage(`已取消表情: ${name}`, 2000, 8);
+        console.log(`[XBHH] Expression removed: ${name} (${index})`);
+      } else {
+        this.activeExpressions.add(index);
+        this.showMessage(`已应用表情: ${name}`, 2000, 8);
+        console.log(`[XBHH] Expression applied: ${name} (${index})`);
+      }
+      this._applyMergedExpressions();
+      console.log(`[XBHH] Active expressions:`, [...this.activeExpressions]);
+    } catch (e) {
+      console.warn("[XBHH] Expression error", e);
+    }
+  }
+
+  clearAllExpressions() {
+    if (!this.model) return;
+    try {
+      this.activeExpressions.clear();
+      this._stopExpressionUpdater();
+      // 使用与动画重置相同的完整参数恢复逻辑
+      this._resetAllParametersToDefault();
+      this.showMessage("已清除所有表情", 2000, 8);
+      console.log("[XBHH] All expressions cleared");
+    } catch (e) {
+      console.warn("[XBHH] Clear expressions error", e);
+    }
+  }
+
+  // 彻底恢复所有模型参数到默认值（与动画重置使用相同逻辑）
+  _resetAllParametersToDefault() {
+    if (!this.model) return;
+    const im = this.model.internalModel;
+    const core = im.coreModel;
+    if (!core) return;
+
+    // 禁止库的表情管理器干扰
+    const expMgr = im.motionManager?.expressionManager;
+    if (expMgr) {
+      if (typeof expMgr.resetExpression === "function") expMgr.resetExpression();
+      if ("currentExpression" in expMgr) expMgr.currentExpression = null;
+      if ("_currentExpression" in expMgr) expMgr._currentExpression = null;
+    }
+
+    // 重置所有参数到默认值
+    if (core && typeof core.getParameterCount === "function") {
+      const count = core.getParameterCount();
+      for (let i = 0; i < count; i++) {
+        const defVal = core.getParameterDefaultValue(i);
+        core.setParameterValueByIndex(i, defVal);
+      }
+      console.log(`[XBHH] Reset ${count} parameters to default`);
+    } else if (core && core._model) {
+      const model = core._model;
+      const defaults = model._parameterDefaultValues || model.parameters?.defaultValues;
+      const values = model._parameterValues || model.parameters?.values;
+      if (defaults && values) {
+        for (let i = 0; i < defaults.length; i++) {
+          values[i] = defaults[i];
+        }
+        console.log(`[XBHH] Reset ${defaults.length} parameters via direct array`);
+      }
+    } else if (core && typeof core.setParamFloat === "function") {
+      core.saveParam();
+      core.loadParam();
+      console.log("[XBHH] Reset via SDK 2.0 saveParam/loadParam");
+    }
+
+    // 播放 Idle 动画作为兜底，确保模型恢复自然状态
+    const idleGroup = Object.keys(this.motions || {}).find(g => g.toLowerCase() === "idle");
+    if (idleGroup) {
+      setTimeout(() => {
+        if (this.model) {
+          this.model.motion(idleGroup, 0, 3);
+          console.log("[XBHH] Playing idle motion after expression reset");
+        }
+      }, 100);
+    }
+  }
+
+  // 核心：合并所有激活表情的参数并直接写入模型
+  _applyMergedExpressions() {
+    if (!this.model) return;
+    const core = this.model.internalModel.coreModel;
+    if (!core) return;
+
+    // 如果没有激活的表情，执行完整的参数恢复
+    if (this.activeExpressions.size === 0) {
+      this._stopExpressionUpdater();
+      this._resetAllParametersToDefault();
+      return;
+    }
+
+    // 彻底禁用库的表情管理器（防止它每帧覆盖我们的参数）
+    this._disableLibraryExpressionManager();
+
+    // 构建完整参数表（包含所有表情参数的默认值 + 激活表情的叠加值）
+    const fullParamMap = new Map();
+
+    // 步骤1：收集所有表情涉及的参数，先全部设为默认值
+    if (this.expressionData && typeof core.getParameterCount === "function") {
+      const defaultValues = new Map();
+      const count = core.getParameterCount();
+      for (let i = 0; i < count; i++) {
+        if (typeof core.getParameterId === "function") {
+          defaultValues.set(core.getParameterId(i), core.getParameterDefaultValue(i));
+        }
+      }
+      for (const params of this.expressionData) {
+        if (!params) continue;
+        for (const p of params) {
+          if (defaultValues.has(p.Id)) {
+            fullParamMap.set(p.Id, defaultValues.get(p.Id));
+          }
+        }
+      }
+    }
+
+    // 步骤2：计算激活表情的合并参数，覆盖默认值
+    const activeParams = new Map();
+    for (const idx of this.activeExpressions) {
+      const params = this.expressionData?.[idx];
+      if (!params) continue;
+      for (const p of params) {
+        const blend = (p.Blend || "Add").toLowerCase();
+        if (blend === "add") {
+          const prev = activeParams.get(p.Id) || 0;
+          activeParams.set(p.Id, prev + p.Value);
+        } else if (blend === "multiply") {
+          const prev = activeParams.get(p.Id) || 1;
+          activeParams.set(p.Id, prev * p.Value);
+        } else {
+          activeParams.set(p.Id, p.Value);
+        }
+      }
+    }
+    for (const [id, value] of activeParams) {
+      fullParamMap.set(id, value);
+    }
+
+    // 先立即应用一次
+    this._writeParamsToCore(core, fullParamMap);
+    console.log(`[XBHH] Applied ${activeParams.size} active expression params (${fullParamMap.size} total managed)`);
+
+    // 缓存参数表，供 ticker 持续使用
+    this._cachedExpressionParams = fullParamMap;
+
+    // 启动持续应用（使用 PIXI ticker 确保在库的 update 之后执行）
+    this._startExpressionUpdater();
+  }
+
+  // 彻底禁用库自带的表情管理器
+  _disableLibraryExpressionManager() {
+    const expMgr = this.model?.internalModel?.motionManager?.expressionManager;
+    if (!expMgr) return;
+
+    // 清空当前表情
+    if (typeof expMgr.resetExpression === "function") expMgr.resetExpression();
+    if ("currentExpression" in expMgr) expMgr.currentExpression = null;
+    if ("_currentExpression" in expMgr) expMgr._currentExpression = null;
+
+    // 关键：monkey-patch 库的 update 方法，阻止它每帧重新应用表情
+    if (!expMgr._xbhhOriginalUpdate) {
+      expMgr._xbhhOriginalUpdate = expMgr.update;
+      expMgr.update = function(model, now) {
+        // 当我们有自定义表情激活时，跳过库的表情更新
+        return false;
+      };
+      console.log("[XBHH] Disabled library expression manager update");
+    }
+  }
+
+  // 恢复库的表情管理器
+  _enableLibraryExpressionManager() {
+    const expMgr = this.model?.internalModel?.motionManager?.expressionManager;
+    if (!expMgr || !expMgr._xbhhOriginalUpdate) return;
+    expMgr.update = expMgr._xbhhOriginalUpdate;
+    delete expMgr._xbhhOriginalUpdate;
+    console.log("[XBHH] Re-enabled library expression manager update");
+  }
+
+  // 将参数表写入模型核心
+  _writeParamsToCore(core, paramMap) {
+    if (typeof core.setParameterValueById === "function") {
+      for (const [id, value] of paramMap) {
+        try { core.setParameterValueById(id, value); } catch (_) {}
+      }
+    } else if (typeof core.setParamFloat === "function") {
+      for (const [id, value] of paramMap) {
+        try { core.setParamFloat(id, value); } catch (_) {}
+      }
+    }
+  }
+
+  // 停止表情持续更新器
+  _stopExpressionUpdater() {
+    if (this._expressionTickerFn && this.pixiApp) {
+      this.pixiApp.ticker.remove(this._expressionTickerFn);
+      this._expressionTickerFn = null;
+    }
+    // 兼容旧的 RAF 方式
+    if (this._expressionUpdateId) {
+      cancelAnimationFrame(this._expressionUpdateId);
+      this._expressionUpdateId = null;
+    }
+    this._cachedExpressionParams = null;
+    // 恢复库的表情管理器
+    this._enableLibraryExpressionManager();
+  }
+
+  // 持续应用表情参数（使用 PIXI ticker，在模型 update 之后执行）
+  _startExpressionUpdater() {
+    // 先清理旧的 ticker 回调（但不清空缓存和不恢复库表情管理器）
+    if (this._expressionTickerFn && this.pixiApp) {
+      this.pixiApp.ticker.remove(this._expressionTickerFn);
+      this._expressionTickerFn = null;
+    }
+    if (this._expressionUpdateId) {
+      cancelAnimationFrame(this._expressionUpdateId);
+      this._expressionUpdateId = null;
+    }
+
+    if (this.activeExpressions.size === 0) return;
+    if (!this.pixiApp || !this.model) return;
+
+    const core = this.model.internalModel.coreModel;
+    if (!core) return;
+
+    if (!this._cachedExpressionParams) return;
+    const paramMap = this._cachedExpressionParams;
+
+    // 禁用库的表情管理器
+    this._disableLibraryExpressionManager();
+
+    // 使用 PIXI ticker 注册回调，这确保在同一帧中库更新后再覆盖参数
+    this._expressionTickerFn = () => {
+      if (this.activeExpressions.size === 0 || !this.model) {
+        this._stopExpressionUpdater();
+        return;
+      }
+      this._writeParamsToCore(core, paramMap);
+    };
+    this.pixiApp.ticker.add(this._expressionTickerFn, null, PIXI.UPDATE_PRIORITY.LOW);
+    console.log("[XBHH] Expression updater started via PIXI ticker");
+  }
+
   setExpression(index) {
     if (!this.model) return;
     try {
@@ -1199,6 +1618,163 @@ export class Live2DPet {
     } catch (e) {
       console.warn("[XBHH] Expression error", e);
     }
+  }
+
+  playMotion(group, index = 0, priority = 3) {
+    if (!this.model) return;
+    this.model.motion(group, index, priority);
+    console.log(`[XBHH] Playing motion: ${group}`);
+  }
+
+  resetMotion() {
+    if (!this.model) return;
+    try {
+      // 同时清理自定义表情状态
+      this.activeExpressions.clear();
+      this._stopExpressionUpdater();
+
+      const im = this.model.internalModel;
+      const core = im.coreModel;
+
+      console.log("[XBHH] resetMotion - internalModel:", im);
+      console.log("[XBHH] resetMotion - coreModel:", core);
+      console.log("[XBHH] resetMotion - motionManager:", im.motionManager);
+
+      // === 第一步：停止所有动画 ===
+      if (im.motionManager) {
+        // 尝试各种可能的停止方法
+        if (typeof im.motionManager.stopAllMotions === "function") {
+          im.motionManager.stopAllMotions();
+          console.log("[XBHH] stopAllMotions() called");
+        }
+        // 清空所有动画状态
+        if (im.motionManager._currentAudio) {
+          im.motionManager._currentAudio.pause();
+          im.motionManager._currentAudio = undefined;
+        }
+        // 强制清理动画队列
+        ["_motionQueueEntries", "motionQueueEntries", "_motions"].forEach(prop => {
+          if (im.motionManager[prop] && Array.isArray(im.motionManager[prop])) {
+            im.motionManager[prop].length = 0;
+          }
+        });
+        // 清空当前动画
+        if ("currentMotion" in im.motionManager) {
+          im.motionManager.currentMotion = null;
+        }
+      }
+
+      // === 第二步：重置表情 ===
+      const expMgr = im.motionManager?.expressionManager;
+      if (expMgr) {
+        if (typeof expMgr.resetExpression === "function") {
+          expMgr.resetExpression();
+        } else if (typeof expMgr.setExpression === "function") {
+          expMgr.setExpression(null);
+        }
+        if ("currentExpression" in expMgr) {
+          expMgr.currentExpression = null;
+        }
+      }
+
+      // === 第三步：重置模型参数到默认值 ===
+      let paramReset = false;
+
+      // 方法A：使用 Cubism4 getParameterCount API (最可靠)
+      if (core && typeof core.getParameterCount === "function") {
+        const count = core.getParameterCount();
+        for (let i = 0; i < count; i++) {
+          const defVal = core.getParameterDefaultValue(i);
+          core.setParameterValueByIndex(i, defVal);
+        }
+        paramReset = true;
+        console.log(`[XBHH] Reset ${count} parameters via Cubism4 API`);
+      }
+      // 方法B：直接操作内部数组 (Cubism4 _model 对象)
+      else if (core && core._model) {
+        const model = core._model;
+        const defaults = model._parameterDefaultValues || model.parameters?.defaultValues;
+        const values = model._parameterValues || model.parameters?.values;
+        if (defaults && values) {
+          for (let i = 0; i < defaults.length; i++) {
+            values[i] = defaults[i];
+          }
+          paramReset = true;
+          console.log(`[XBHH] Reset ${defaults.length} parameters via direct array`);
+        }
+      }
+      // 方法C：SDK 2.0 兼容
+      else if (core && typeof core.setParamFloat === "function") {
+        core.saveParam();
+        core.loadParam();
+        paramReset = true;
+        console.log("[XBHH] Reset via SDK 2.0 saveParam/loadParam");
+      }
+
+      if (!paramReset) {
+        console.warn("[XBHH] Could not reset parameters, core structure:", Object.keys(core || {}));
+      }
+
+      // === 第四步：播放 Idle 动画作为兜底 ===
+      const idleGroup = Object.keys(this.motions || {}).find(g => g.toLowerCase() === "idle");
+      if (idleGroup) {
+        setTimeout(() => {
+          this.model.motion(idleGroup, 0, 3);
+          console.log("[XBHH] Fallback: playing idle motion");
+        }, 100);
+      }
+
+      this.showMessage("已恢复初始状态", 2000, 10);
+      console.log("[XBHH] Motion & parameters reset to initial state");
+    } catch (e) {
+      console.warn("[XBHH] Reset motion error:", e);
+      // 最终兜底：尝试播放 idle
+      try {
+        const idleGroup = Object.keys(this.motions || {}).find(g => g.toLowerCase() === "idle");
+        if (idleGroup) this.model.motion(idleGroup, 0, 3);
+      } catch (_) {}
+      this.showMessage("恢复初始化失败", 2000, 10);
+    }
+  }
+
+  loadMotionKeybinds() {
+    try {
+      const saved = localStorage.getItem("xbhh_motion_keybinds");
+      if (saved) this.motionKeybinds = JSON.parse(saved);
+    } catch (e) { this.motionKeybinds = {}; }
+  }
+
+  saveMotionKeybinds() {
+    localStorage.setItem("xbhh_motion_keybinds", JSON.stringify(this.motionKeybinds));
+  }
+
+  _buildKeyCombo(e) {
+    const parts = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Meta");
+    parts.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+    return parts.join("+");
+  }
+
+  bindMotionKeyListener() {
+    if (this._motionKeyHandler) {
+      window.removeEventListener("keydown", this._motionKeyHandler, true);
+    }
+    this._motionKeyHandler = (e) => {
+      const tag = e.target.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+      if (["Control", "Shift", "Alt", "Meta"].includes(e.key)) return;
+      const combo = this._buildKeyCombo(e);
+      const group = this.motionKeybinds[combo];
+      if (group && this.motions[group]) {
+        e.preventDefault();
+        this.playMotion(group);
+        this.showMessage(`🎬 播放动画: ${group}`, 2000, 8);
+      }
+    };
+    window.addEventListener("keydown", this._motionKeyHandler, true);
   }
 
   hide() {

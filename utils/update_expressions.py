@@ -46,6 +46,22 @@ def update_model_config(model_dir):
         file_refs["Motions"] = motions
         print(f"Added {len(idle_motions)} idle motions.")
 
+    # 3. 自动处理 motions 文件夹中的动画
+    motions_dir = os.path.join(model_dir, "motions")
+    if os.path.exists(motions_dir) and os.path.isdir(motions_dir):
+        motions = file_refs.get("Motions", {})
+        motion_count = 0
+        for f in os.listdir(motions_dir):
+            if f.endswith('.motion3.json'):
+                # 用文件名（去掉 .motion3.json 后缀）作为动作组名
+                name = f.replace('.motion3.json', '')
+                motions[name] = [{"File": f"motions/{f}"}]
+                motion_count += 1
+        file_refs["Motions"] = motions
+        print(f"Added {motion_count} motions from motions folder.")
+    else:
+        print("No motions directory found, skipping Motions folder update.")
+
     data["FileReferences"] = file_refs
 
     # 写回文件
