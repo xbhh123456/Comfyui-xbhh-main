@@ -6,10 +6,53 @@ const NODE_NAME = "XBHHMultiLoraLoaderPlus";
 const IMAGE_SIZE = 300;
 
 // ============================================================================
+// 前缀树 (Trie Tree) 模糊搜索引擎
+// ============================================================================
+class TrieNode {
+    constructor() {
+        this.children = {};
+        this.items = new Set();
+    }
+}
+
+class Trie {
+    constructor() {
+        this.root = new TrieNode();
+    }
+
+    insert(word, item) {
+        word = word.toLowerCase().trim();
+        if (!word) return;
+        let node = this.root;
+        for (const char of word) {
+            if (!node.children[char]) {
+                node.children[char] = new TrieNode();
+            }
+            node = node.children[char];
+            node.items.add(item);
+        }
+    }
+
+    search(prefix) {
+        prefix = prefix.toLowerCase().trim();
+        if (!prefix) return [];
+        let node = this.root;
+        for (const char of prefix) {
+            if (!node.children[char]) {
+                return [];
+            }
+            node = node.children[char];
+        }
+        return Array.from(node.items);
+    }
+}
+
+// ============================================================================
 // 数据存储
 // ============================================================================
 let loraImages = {};
 let loraList = [];
+let loraTrie = new Trie();
 
 // ============================================================================
 // 工具函数
@@ -26,6 +69,23 @@ async function loadLoraData() {
         ]);
         loraImages = images;
         loraList = loras;
+
+        // 构建 Trie Tree
+        loraTrie = new Trie();
+        for (const loraName of loraList) {
+            loraTrie.insert(loraName, loraName);
+            const filename = loraName.split(/[\/\\]/).pop();
+            loraTrie.insert(filename, loraName);
+            const filenameNoExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+            loraTrie.insert(filenameNoExt, loraName);
+            // 切割出关键词
+            const parts = loraName.split(/[\/\_\-\s\.]/);
+            for (const part of parts) {
+                if (part && part.length > 1) {
+                    loraTrie.insert(part, loraName);
+                }
+            }
+        }
     } catch (error) {
         console.error("XBHH: Error loading lora data", error);
     }
@@ -195,8 +255,8 @@ function showPresetDialog(node, mode) {
     if (mode === "export") {
         const lines = [];
         for (const w of node.loraWidgets || []) {
-            if (w.value?.lora) {
-                const enabled = w.value.on ? "1" : "0";
+            if (w.value?.lora && w.value.on) {
+                const enabled = "1";
                 const lora = w.value.lora;
                 const strength = w.value.strength ?? 1.0;
                 const strengthTwo = w.value.strengthTwo ?? strength;
@@ -268,12 +328,7 @@ function showPresetDialog(node, mode) {
                     return;
                 }
                 
-                // 清空现有 LoRA
-                while (node.loraWidgets?.length > 0) {
-                    node.removeLoraWidget(node.loraWidgets[0]);
-                }
-                
-                // 解析并导入
+                // 解析并导入 (不需要全覆盖清空)
                 const lines = text.split("\n");
                 for (const line of lines) {
                     const parts = line.trim().split("|");
@@ -285,12 +340,21 @@ function showPresetDialog(node, mode) {
                         const trigger = parts[4] || "";
                         const triggerWeight = parseFloat(parts[5]) || 1.0;
                         
-                        const w = node.addLoraRow(loraName);
-                        w.value.on = enabled;
-                        w.value.strength = strength;
-                        w.value.strengthTwo = strengthTwo;
-                        w.value.trigger = trigger;
-                        w.value.triggerWeight = triggerWeight;
+                        let existingW = (node.loraWidgets || []).find(w => w.value?.lora === loraName);
+                        if (existingW) {
+                            existingW.value.on = enabled;
+                            existingW.value.strength = strength;
+                            existingW.value.strengthTwo = strengthTwo;
+                            if (trigger) existingW.value.trigger = trigger;
+                            existingW.value.triggerWeight = triggerWeight;
+                        } else {
+                            const w = node.addLoraRow(loraName);
+                            w.value.on = enabled;
+                            w.value.strength = strength;
+                            w.value.strengthTwo = strengthTwo;
+                            w.value.trigger = trigger;
+                            w.value.triggerWeight = triggerWeight;
+                        }
                     }
                 }
                 
@@ -351,6 +415,31 @@ function showLoraChooserDialog(event, callback) {
         }
     });
 
+    const selectedItems = new Set();
+
+    function reposition() {
+        if (!dialog.parentNode) return;
+        const rect = dialog.getBoundingClientRect();
+        const curX = event.clientX || 100;
+        const curY = event.clientY || 100;
+        
+        let targetLeft = curX + 20; // 默认显示在右侧
+        if (targetLeft + rect.width > window.innerWidth - 10) {
+            targetLeft = curX - rect.width - 20; // 空间不足则显示在左侧
+        }
+        if (targetLeft < 10) targetLeft = 10;
+        
+        let targetTop = curY - rect.height / 2; // 垂直居中于光标
+        
+        if (targetTop + rect.height > window.innerHeight - 10) {
+            targetTop = window.innerHeight - rect.height - 10;
+        }
+        if (targetTop < 10) targetTop = 10;
+        
+        dialog.style.left = `${targetLeft}px`;
+        dialog.style.top = `${targetTop}px`;
+    }
+
     // 搜索框容器
     const searchContainer = $el("div", {
         style: {
@@ -404,26 +493,47 @@ function showLoraChooserDialog(event, callback) {
                 color: "#ddd",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
-                textOverflow: "ellipsis"
+                textOverflow: "ellipsis",
+                display: "flex",
+                alignItems: "center"
             },
-            textContent: hasImg ? `🖼️ ${fileName}` : fileName,
             onmouseenter: (e) => {
-                item.style.background = "#444";
+                item.style.background = selectedItems.has(loraName) ? "#3a7a5a" : "#444";
                 if (hasImg) {
                     const rect = item.getBoundingClientRect();
                     showPreviewAt(loraName, rect.right, rect.top + rect.height / 2);
                 }
             },
             onmouseleave: () => {
-                item.style.background = "";
+                item.style.background = selectedItems.has(loraName) ? "#2d5a3d" : "";
                 hidePreview();
             },
             onclick: () => {
                 hidePreview();
-                dialog.remove();
-                callback(loraName);
+                if (selectedItems.has(loraName)) {
+                    selectedItems.delete(loraName);
+                    checkbox.checked = false;
+                    item.style.background = "";
+                } else {
+                    selectedItems.add(loraName);
+                    checkbox.checked = true;
+                    item.style.background = "#2d5a3d";
+                }
+                if (typeof updateConfirmBtn === "function") updateConfirmBtn();
             }
         });
+        
+        const checkbox = $el("input", {
+            type: "checkbox",
+            style: { marginRight: "8px", pointerEvents: "none" }
+        });
+        
+        const textSpan = $el("span", {
+            textContent: hasImg ? `🖼️ ${fileName}` : fileName
+        });
+        
+        item.appendChild(checkbox);
+        item.appendChild(textSpan);
         
         allItems.push({ element: item, loraName, fileName: fileName.toLowerCase() });
         return item;
@@ -461,6 +571,7 @@ function showLoraChooserDialog(event, callback) {
             const isOpen = children.style.display !== "none";
             children.style.display = isOpen ? "none" : "block";
             header.textContent = isOpen ? `📁 ${name}` : `📂 ${name}`;
+            requestAnimationFrame(reposition);
         };
         
         allFolders.push({ header, children, name });
@@ -537,6 +648,7 @@ function showLoraChooserDialog(event, callback) {
                 children.style.display = "none";
                 header.textContent = header.textContent.replace("📂", "📁");
             });
+            requestAnimationFrame(reposition);
             return;
         }
         
@@ -545,26 +657,63 @@ function showLoraChooserDialog(event, callback) {
             children.style.display = "block";
         });
         
+        const trieMatches = loraTrie.search(query);
         allItems.forEach(({ element, loraName, fileName }) => {
-            const matches = fileName.includes(query) || loraName.toLowerCase().includes(query);
+            const matches = trieMatches.includes(loraName) || fileName.includes(query) || loraName.toLowerCase().includes(query);
             element.style.display = matches ? "" : "none";
             if (matches) {
                 element.style.paddingLeft = "12px";
             }
         });
+        requestAnimationFrame(reposition);
     };
 
     setTimeout(() => searchInput.focus(), 50);
 
     document.body.appendChild(dialog);
 
-    const rect = dialog.getBoundingClientRect();
-    if (rect.right > window.innerWidth) {
-        dialog.style.left = `${window.innerWidth - rect.width - 10}px`;
+    const bottomBar = $el("div", {
+        style: {
+            padding: "10px",
+            borderTop: "1px solid #444",
+            background: "#2a2a2a",
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "10px"
+        }
+    });
+
+    const confirmBtn = $el("button", {
+        style: {
+            padding: "6px 12px",
+            background: "#4caf50",
+            border: "none",
+            borderRadius: "4px",
+            color: "#fff",
+            cursor: "pointer",
+            fontWeight: "bold"
+        },
+        textContent: "添加选中 (0)",
+        onclick: () => {
+            hidePreview();
+            dialog.remove();
+            document.removeEventListener("pointerdown", closeHandler, true);
+            document.removeEventListener("keydown", escHandler);
+            callback(Array.from(selectedItems));
+        }
+    });
+    
+    window.updateConfirmBtn = function() {
+        confirmBtn.textContent = `添加选中 (${selectedItems.size})`;
+        confirmBtn.style.opacity = selectedItems.size > 0 ? "1" : "0.5";
+        confirmBtn.disabled = selectedItems.size === 0;
     }
-    if (rect.bottom > window.innerHeight) {
-        dialog.style.top = `${window.innerHeight - rect.height - 10}px`;
-    }
+    updateConfirmBtn();
+    
+    bottomBar.appendChild(confirmBtn);
+    dialog.appendChild(bottomBar);
+
+    reposition();
 
     // 点击外部关闭弹窗
     const closeHandler = (e) => {
@@ -642,9 +791,12 @@ app.registerExtension({
             };
             addLoraBtn.mouse = (event, pos, node) => {
                 if (event.type === "pointerdown") {
-                    showLoraChooserDialog(event, value => {
-                        if (value && value !== "None") {
-                            node.addLoraRow(value);
+                    showLoraChooserDialog(event, values => {
+                        if (values) {
+                            if (typeof values === "string") values = [values];
+                            values.forEach(val => {
+                                if (val !== "None") node.addLoraRow(val);
+                            });
                         }
                     });
                     return true;
@@ -716,6 +868,7 @@ app.registerExtension({
         };
 
         nodeType.prototype.addLoraRow = function(loraName) {
+            if (Array.isArray(loraName)) loraName = loraName[0];
             this.loraCounter++;
             const widgetName = `lora_${this.loraCounter}`;
             
@@ -727,6 +880,19 @@ app.registerExtension({
                 trigger: "",
                 triggerWeight: 1.0
             }, () => {});
+
+            // Auto-populate trigger word from database
+            if (loraName && loraName !== "None") {
+                api.fetchApi(`/xbhh/lora/trigger?name=${encodeURIComponent(loraName)}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data && data.active_trigger) {
+                            widget.value.trigger = data.active_trigger;
+                            this.setDirtyCanvas(true, true);
+                        }
+                    })
+                    .catch(e => console.error("Error fetching trigger word:", e));
+            }
 
             widget.computeSize = () => [this.size[0] - 20, 22];
             widget.serializeValue = () => widget.value;
@@ -768,6 +934,9 @@ app.registerExtension({
                     ctx.fillText("✓", toggleX + toggleSize/2, midY);
                 }
 
+                if (Array.isArray(widget.value.lora)) {
+                    widget.value.lora = widget.value.lora[0];
+                }
                 const name = widget.value.lora?.split(/[\/\\]/).pop() || "None";
                 const nameX = toggleX + toggleSize + 6;
                 ctx.fillStyle = isOn ? "#ddd" : "#777";
@@ -842,9 +1011,9 @@ app.registerExtension({
                     
                     // LoRA名称区域
                     if (localX >= margin + 24 && localX <= node.size[0] - 60) {
-                        showLoraChooserDialog(event, value => {
-                            if (value) {
-                                widget.value.lora = value;
+                        showLoraChooserDialog(event, values => {
+                            if (values && values.length > 0) {
+                                widget.value.lora = values[0];
                                 node.setDirtyCanvas(true, true);
                             }
                         });
@@ -929,8 +1098,13 @@ app.registerExtension({
             };
             addLoraBtn.mouse = (event, pos, node) => {
                 if (event.type === "pointerdown") {
-                    showLoraChooserDialog(event, value => {
-                        if (value && value !== "None") node.addLoraRow(value);
+                    showLoraChooserDialog(event, values => {
+                        if (values) {
+                            if (typeof values === "string") values = [values];
+                            values.forEach(val => {
+                                if (val !== "None") node.addLoraRow(val);
+                            });
+                        }
                     });
                     return true;
                 }
@@ -1014,6 +1188,15 @@ app.registerExtension({
                                 app.canvas.prompt("触发词", w.value.trigger || "", v => {
                                     w.value.trigger = v;
                                     this.setDirtyCanvas(true, true);
+                                    
+                                    // Save custom trigger word to SQLite database
+                                    if (w.value.lora) {
+                                        api.fetchApi("/xbhh/lora/trigger/update", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ name: w.value.lora, trigger: v })
+                                        }).catch(err => console.error("Error saving trigger word to DB:", err));
+                                    }
                                 });
                             }
                         },
