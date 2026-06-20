@@ -100,6 +100,14 @@ class XBHHMultiLoraLoaderPlus:
         # 收集触发词
         trigger_words = []
         
+        # 0. 预先收集现有的手动配置 LoRA
+        existing_lora_names = set()
+        for key, value in kwargs.items():
+            if key.upper().startswith('LORA_') and isinstance(value, dict):
+                lora_name = value.get('lora')
+                if lora_name and lora_name != 'None':
+                    existing_lora_names.add(lora_name)
+
         # 1. 先处理来自外部输入的 lora_preset
         if lora_preset and isinstance(lora_preset, str):
             lines = lora_preset.strip().split('\n')
@@ -108,21 +116,29 @@ class XBHHMultiLoraLoaderPlus:
                 if len(parts) >= 2:
                     is_on = parts[0] == "1"
                     lora_name = parts[1]
-                    strength_model = float(parts[2]) if len(parts) > 2 else 1.0
-                    strength_clip = float(parts[3]) if len(parts) > 3 else strength_model
-                    trigger = parts[4] if len(parts) > 4 else ""
-                    trigger_weight = float(parts[5]) if len(parts) > 5 else 1.0
                     
-                    # 模拟成接下来统一处理的格式
-                    tag = f"PRESET_{lora_name}"
-                    kwargs[tag] = {
-                        "on": is_on,
-                        "lora": lora_name,
-                        "strength": strength_model,
-                        "strengthTwo": strength_clip,
-                        "trigger": trigger,
-                        "triggerWeight": trigger_weight
-                    }
+                    if lora_name in existing_lora_names:
+                        # 已经存在的手动输入优先，合并启用状态
+                        for k, v in kwargs.items():
+                            if k.upper().startswith('LORA_') and isinstance(v, dict) and v.get('lora') == lora_name:
+                                v['on'] = is_on
+                                break
+                    else:
+                        strength_model = float(parts[2]) if len(parts) > 2 else 1.0
+                        strength_clip = float(parts[3]) if len(parts) > 3 else strength_model
+                        trigger = parts[4] if len(parts) > 4 else ""
+                        trigger_weight = float(parts[5]) if len(parts) > 5 else 1.0
+                        
+                        # 不存在则作为预设项追加
+                        tag = f"PRESET_{lora_name}"
+                        kwargs[tag] = {
+                            "on": is_on,
+                            "lora": lora_name,
+                            "strength": strength_model,
+                            "strengthTwo": strength_clip,
+                            "trigger": trigger,
+                            "triggerWeight": trigger_weight
+                        }
 
         # 2. 处理所有输入（包括预设和手动挂件）
         for key, value in kwargs.items():
@@ -143,17 +159,17 @@ class XBHHMultiLoraLoaderPlus:
                 trigger = value.get('trigger', '')
                 trigger_weight = value.get('triggerWeight', 1.0)
                 
+                if not is_on:
+                    continue
+                
                 # 生成预设行 (格式: enabled|lora_name|strength_model|strength_clip|trigger|trigger_weight)
-                enabled_str = "1" if is_on else "0"
+                enabled_str = "1"
                 preset_lines.append(f"{enabled_str}|{lora_name}|{strength_model}|{strength_clip if strength_clip else strength_model}|{trigger}|{trigger_weight}")
                 
                 # 收集启用的触发词
                 if is_on and trigger:
                     formatted_trigger = f"({trigger}:{trigger_weight:.2f})"
                     trigger_words.append(formatted_trigger)
-                
-                if not is_on:
-                    continue
                 
                 if clip is None:
                     strength_clip = 0
@@ -165,6 +181,14 @@ class XBHHMultiLoraLoaderPlus:
                 if lora_file is None:
                     print(f"[XBHH] Warning: LoRA not found: {lora_name}")
                     continue
+                
+                # Increment LFU use statistics in SQLite
+                try:
+                    import threading
+                    from . import lora_database
+                    threading.Thread(target=lambda: lora_database.increment_lora_use(lora_file), daemon=True).start()
+                except Exception:
+                    pass
                 
                 if model is not None:
                     try:

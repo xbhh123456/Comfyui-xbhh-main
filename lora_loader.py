@@ -179,6 +179,14 @@ class XBHHMultiLoraLoader:
                     print(f"[XBHH] Warning: LoRA not found: {lora_name}")
                     continue
                 
+                # Increment LFU use statistics in SQLite
+                try:
+                    import threading
+                    from . import lora_database
+                    threading.Thread(target=lambda: lora_database.increment_lora_use(lora_file), daemon=True).start()
+                except Exception:
+                    pass
+                
                 if model is not None:
                     try:
                         model, clip = LoraLoader().load_lora(
