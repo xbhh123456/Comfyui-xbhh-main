@@ -378,6 +378,8 @@ class d {
   }
   registerTools() {
     var e;
+    const toolBar = document.getElementById("waifu-tool");
+    if (toolBar) toolBar.innerHTML = "";
     Array.isArray(this.config.tools) ||
       (this.config.tools = Object.keys(this.tools));
     for (const t of this.config.tools)
@@ -395,6 +397,7 @@ class d {
 }
 async function r(t) {
   var s;
+  document.querySelectorAll("#waifu").forEach((el) => el.remove());
   (localStorage.removeItem("waifu-display"),
     sessionStorage.removeItem("waifu-message-priority"),
     document.body.insertAdjacentHTML(
@@ -553,9 +556,9 @@ async function r(t) {
 
             // 触发拖拽对话 (频率限制 5s)
             const now = Date.now();
-            if (!this._lastDragTipTime || now - this._lastDragTipTime > 5000) {
+            if (!window._lastDragTipTime || now - window._lastDragTipTime > 5000) {
                 window.dispatchEvent(new CustomEvent("live2d:drag"));
-                this._lastDragTipTime = now;
+                window._lastDragTipTime = now;
             }
           };
 
@@ -587,6 +590,7 @@ window.initWidget = function (e) {
     return void a.error(
       "Your config for Live2D initWidget is outdated. Please refer to https://github.com/stevenjoezhang/live2d-widget/blob/master/dist/autoload.js",
     );
+  document.querySelectorAll("#waifu-toggle, #waifu").forEach((el) => el.remove());
   (a.setLevel(e.logLevel),
     document.body.insertAdjacentHTML(
       "beforeend",

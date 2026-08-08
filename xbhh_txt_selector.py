@@ -1,20 +1,50 @@
 import os
 import random
+import folder_paths
 
 # 获取当前文件所在目录
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-XBHH_FOLDER = os.path.join(CURRENT_DIR, "xbhh")
+XBHH_PLUGIN_FOLDER = os.path.join(CURRENT_DIR, "xbhh")
+
+def get_user_txt_folder():
+    """获取并确保创建 user/xbhh/txt/ 存放自定义 txt 文件的文件夹"""
+    try:
+        if hasattr(folder_paths, "get_user_directory"):
+            base_dir = folder_paths.get_user_directory()
+        else:
+            base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "user")
+    except Exception:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    user_txt_dir = os.path.join(base_dir, "xbhh", "txt")
+    os.makedirs(user_txt_dir, exist_ok=True)
+    return user_txt_dir
+
+def get_txt_files_dict():
+    """获取所有可用的 txt 文件路径映射 {文件名: 完整路径}，优先使用 user 目录"""
+    files_map = {}
+    
+    # 1. 扫描插件自带目录
+    if os.path.exists(XBHH_PLUGIN_FOLDER):
+        for f in os.listdir(XBHH_PLUGIN_FOLDER):
+            if f.endswith('.txt'):
+                files_map[f] = os.path.join(XBHH_PLUGIN_FOLDER, f)
+                
+    # 2. 扫描 ComfyUI user 目录（优先于插件自带目录）
+    user_txt_dir = get_user_txt_folder()
+    if os.path.exists(user_txt_dir):
+        for f in os.listdir(user_txt_dir):
+            if f.endswith('.txt'):
+                files_map[f] = os.path.join(user_txt_dir, f)
+                
+    return files_map
 
 def get_txt_files():
-    """获取xbhh文件夹下的所有txt文件"""
-    if not os.path.exists(XBHH_FOLDER):
-        os.makedirs(XBHH_FOLDER)
-    
-    txt_files = [f for f in os.listdir(XBHH_FOLDER) if f.endswith('.txt')]
-    
+    """获取可用 txt 文件名称列表"""
+    files_map = get_txt_files_dict()
+    txt_files = list(files_map.keys())
     if not txt_files:
         return ["无txt文件"]
-    
     return txt_files
 
 class XBHHTxtSelector:
@@ -44,9 +74,10 @@ class XBHHTxtSelector:
         if txt_file == "无txt文件":
             return ("",)
         
-        file_path = os.path.join(XBHH_FOLDER, txt_file)
+        files_map = get_txt_files_dict()
+        file_path = files_map.get(txt_file)
         
-        if not os.path.exists(file_path):
+        if not file_path or not os.path.exists(file_path):
             return ("",)
         
         try:

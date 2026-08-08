@@ -7,13 +7,48 @@ import urllib.request
 import urllib.error
 import threading
 import time
+import shutil
 import folder_paths
 
-DB_DIR = os.path.join(os.path.dirname(__file__), "data")
-DB_PATH = os.path.join(DB_DIR, "lora_trigger_word.db")
+def get_xbhh_user_dir():
+    """获取并确保创建 XBHH 在 ComfyUI user 目录下的专属持久化数据文件夹"""
+    try:
+        if hasattr(folder_paths, "get_user_directory"):
+            base_dir = folder_paths.get_user_directory()
+        else:
+            base_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "user")
+            if not os.path.exists(base_dir):
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+    except Exception:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    user_data_dir = os.path.join(base_dir, "xbhh")
+    os.makedirs(user_data_dir, exist_ok=True)
+    return user_data_dir
 
-# Ensure data folder exists
-os.makedirs(DB_DIR, exist_ok=True)
+def get_db_path():
+    """获取数据库完整路径，若 user 目录中无数据库但旧插件目录有，则自动完成迁移"""
+    user_data_dir = get_xbhh_user_dir()
+    user_db_path = os.path.join(user_data_dir, "lora_trigger_word.db")
+    
+    # 检查旧插件目录下的数据库
+    legacy_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    legacy_db_path = os.path.join(legacy_dir, "lora_trigger_word.db")
+    
+    # 如果 user 目录数据库不存在，且旧目录存在数据库，则自动迁移
+    if not os.path.exists(user_db_path) and os.path.exists(legacy_db_path):
+        try:
+            print(f"[XBHH DB] 正在从旧路径迁移提示词数据库: {legacy_db_path} -> {user_db_path}")
+            shutil.copy2(legacy_db_path, user_db_path)
+            print("[XBHH DB] 提示词数据库自动迁移成功！数据已持久化至 ComfyUI user 目录。")
+        except Exception as e:
+            print(f"[XBHH DB] 数据库迁移失败，错误: {e}")
+            return legacy_db_path
+            
+    return user_db_path
+
+DB_DIR = get_xbhh_user_dir()
+DB_PATH = get_db_path()
 
 # Lock for SQLite thread safety
 _db_lock = threading.Lock()
@@ -32,7 +67,7 @@ STOPWORDS = {
 
 def get_db_connection():
     """Get a connection to the SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(get_db_path())
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -62,7 +97,13 @@ def init_db():
         # Create B-Tree indexes for fast name and path queries
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lora_name ON lora_global (name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_lora_use ON lora_global (use_count)")
-        
+
+        # 检查并为 lora_global 动态追加 profiles 字段（多套提示词预设 Profile）
+        cursor.execute("PRAGMA table_info(lora_global)")
+        cols = [col[1] for col in cursor.fetchall()]
+        if "profiles" not in cols:
+            cursor.execute("ALTER TABLE lora_global ADD COLUMN profiles TEXT")
+
         # 2. LFU Cache table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS lora_cache (
@@ -218,25 +259,38 @@ def sync_lfu_cache(limit=50):
 # Civitai API Fetch
 # ============================================================================
 def fetch_civitai_trigger_words(model_hash):
-    """Fetch model version trigger words from Civitai API by hash."""
-    url = f"https://civitai.com/api/v1/model-versions/by-hash/{model_hash}"
-    try:
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Antigravity/1.0'}
-        )
-        with urllib.request.urlopen(req, timeout=8) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            trained_words = data.get('trainedWords', [])
-            if trained_words:
-                words_str = ", ".join(trained_words)
-                return words_str
-            return ""
-    except urllib.error.HTTPError as e:
-        print(f"[XBHH DB] Civitai HTTP error for {model_hash}: {e.code} - {e.reason}")
-    except Exception as e:
-        print(f"[XBHH DB] Error querying Civitai API for {model_hash}: {e}")
+    """Fetch model version trigger words from Civitai API by hash (prioritizes civitai.red for full model catalog)."""
+    settings = get_settings()
+    api_key = settings.get("civitai_api_key", "").strip()
+
+    domains = ["civitai.red", "civitai.com"]
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+    }
+    if api_key:
+        headers['Authorization'] = f'Bearer {api_key}'
+
+    for domain in domains:
+        url = f"https://{domain}/api/v1/model-versions/by-hash/{model_hash}"
+        if api_key:
+            url += f"?token={api_key}"
+
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                trained_words = data.get('trainedWords', [])
+                if trained_words:
+                    words_str = ", ".join(trained_words)
+                    return words_str
+        except urllib.error.HTTPError as e:
+            print(f"[XBHH DB] Civitai ({domain}) HTTP error for {model_hash}: {e.code} - {e.reason}")
+        except Exception as e:
+            print(f"[XBHH DB] Error querying Civitai ({domain}) API for {model_hash}: {e}")
+
     return ""
+
 
 # ============================================================================
 # Background Scanning Engine
@@ -335,4 +389,62 @@ def increment_lora_use(name):
         conn.commit()
         conn.close()
     sync_lfu_cache()
+
+
+def get_settings():
+    """获取全站通用配置（保存在 ComfyUI user 目录中）"""
+    settings_file = os.path.join(get_xbhh_user_dir(), "settings.json")
+    if os.path.exists(settings_file):
+        try:
+            with open(settings_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"disable_auto_trigger": False}
+
+
+def save_settings(settings):
+    """保存全站通用配置"""
+    settings_file = os.path.join(get_xbhh_user_dir(), "settings.json")
+    try:
+        with open(settings_file, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"[XBHH Settings] Error saving settings: {e}")
+        return False
+
+
+def get_lora_profiles(name):
+    """获取指定 LoRA 的多套提示词预设 Profile 列表"""
+    if not name:
+        return []
+    with _db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT profiles FROM lora_global WHERE name = ?", (name,))
+        row = cursor.fetchone()
+        conn.close()
+    if row and row["profiles"]:
+        try:
+            return json.loads(row["profiles"])
+        except Exception:
+            pass
+    return []
+
+
+def update_lora_profiles(name, profiles):
+    """更新指定 LoRA 的多套提示词预设 Profile 列表"""
+    if not name:
+        return False
+    profiles_json = json.dumps(profiles, ensure_ascii=False) if profiles else None
+    with _db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE lora_global SET profiles = ? WHERE name = ?", (profiles_json, name))
+        conn.commit()
+        conn.close()
+    return True
+
+
 

@@ -121,7 +121,7 @@ async def get_lora_metadata(request):
     conn = lora_database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT hash, user_trigger, auto_trigger, trained_words, use_count FROM lora_global WHERE name = ?", 
+        "SELECT hash, user_trigger, auto_trigger, trained_words, use_count, profiles FROM lora_global WHERE name = ?", 
         (name,)
     )
     db_row = cursor.fetchone()
@@ -129,13 +129,20 @@ async def get_lora_metadata(request):
     
     db_info = {}
     if db_row:
+        profiles_list = []
+        if db_row["profiles"]:
+            try:
+                profiles_list = json.loads(db_row["profiles"])
+            except Exception:
+                pass
         db_info = {
             "hash": db_row["hash"],
             "user_trigger": db_row["user_trigger"] or "",
             "auto_trigger": db_row["auto_trigger"] or "",
             "trained_words": db_row["trained_words"] or "",
             "active_trigger": db_row["user_trigger"] or db_row["auto_trigger"] or db_row["trained_words"] or "",
-            "use_count": db_row["use_count"] or 0
+            "use_count": db_row["use_count"] or 0,
+            "profiles": profiles_list
         }
     else:
         db_info = {
@@ -144,7 +151,8 @@ async def get_lora_metadata(request):
             "auto_trigger": "",
             "trained_words": "",
             "active_trigger": "",
-            "use_count": 0
+            "use_count": 0,
+            "profiles": []
         }
     
     return web.json_response({
@@ -168,7 +176,7 @@ async def get_lora_metadata_batch(request):
     # 批量获取数据库信息，避免循环查询
     conn = lora_database.get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT hash, name, user_trigger, auto_trigger, trained_words, use_count FROM lora_global")
+    cursor.execute("SELECT hash, name, user_trigger, auto_trigger, trained_words, use_count, profiles FROM lora_global")
     db_rows = cursor.fetchall()
     conn.close()
     
@@ -200,13 +208,20 @@ async def get_lora_metadata_batch(request):
         db_row = db_map.get(lora_name)
         db_info = {}
         if db_row:
+            profiles_list = []
+            if db_row["profiles"]:
+                try:
+                    profiles_list = json.loads(db_row["profiles"])
+                except Exception:
+                    pass
             db_info = {
                 "hash": db_row["hash"],
                 "user_trigger": db_row["user_trigger"],
                 "auto_trigger": db_row["auto_trigger"] or "",
                 "trained_words": db_row["trained_words"] or "",
                 "active_trigger": db_row["user_trigger"] if db_row["user_trigger"] is not None else (db_row["auto_trigger"] or db_row["trained_words"] or ""),
-                "use_count": db_row["use_count"] or 0
+                "use_count": db_row["use_count"] or 0,
+                "profiles": profiles_list
             }
         else:
             db_info = {
@@ -215,7 +230,8 @@ async def get_lora_metadata_batch(request):
                 "auto_trigger": "",
                 "trained_words": "",
                 "active_trigger": "",
-                "use_count": 0
+                "use_count": 0,
+                "profiles": []
             }
         
         # 为了加载速度，批量列表不读取完整 Safetensors，仅拉取文件基本属性和 DB 数据
@@ -297,6 +313,66 @@ async def serve_lora_manager(request):
     return web.Response(text="LoRA Manager page not found", status=404)
 
 
+@PromptServer.instance.routes.get("/xbhh/lora-manager-demo")
+async def serve_lora_manager_demo(request):
+    """提供 xbhh LoRA 数据管理器的独立演示 Demo 页面"""
+    html_path = os.path.join(os.path.dirname(__file__), "web", "lora_manager_demo.html")
+    if os.path.isfile(html_path):
+        return web.FileResponse(html_path)
+    return web.Response(text="LoRA Manager Demo page not found", status=404)
+
+
+# ============================================================================
+# 全局设置 API
+# ============================================================================
+
+@PromptServer.instance.routes.get("/xbhh/lora/settings")
+async def get_settings_api(request):
+    """获取全站 LoRA 设置 (包含 disable_auto_trigger 等)"""
+    settings = lora_database.get_settings()
+    return web.json_response(settings)
+
+
+@PromptServer.instance.routes.post("/xbhh/lora/settings")
+async def update_settings_api(request):
+    """更新全站 LoRA 设置"""
+    try:
+        data = await request.json()
+        current = lora_database.get_settings()
+        current.update(data)
+        success = lora_database.save_settings(current)
+        return web.json_response({"success": success, "settings": current})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=400)
+
+
+@PromptServer.instance.routes.get("/xbhh/lora/profiles")
+async def get_profiles_api(request):
+    """获取指定 LoRA 的预设 Profile 列表"""
+    name = request.query.get("name", "")
+    if not name:
+        return web.json_response({"error": "Missing parameter 'name'"}, status=400)
+    profiles = lora_database.get_lora_profiles(name)
+    return web.json_response({"name": name, "profiles": profiles})
+
+
+@PromptServer.instance.routes.post("/xbhh/lora/profiles/update")
+async def update_profiles_api(request):
+    """更新指定 LoRA 的预设 Profile 列表"""
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+        
+    name = data.get("name", "")
+    profiles = data.get("profiles", [])
+    if not name:
+        return web.json_response({"error": "Missing parameter 'name'"}, status=400)
+        
+    success = lora_database.update_lora_profiles(name, profiles)
+    return web.json_response({"success": success, "name": name, "profiles": profiles})
+
+
 # ============================================================================
 # 新增 API 路由 - 触发词、Civitai 交互与 LFU 计数
 # ============================================================================
@@ -308,6 +384,9 @@ async def get_trigger(request):
     if not name:
         return web.json_response({"error": "Missing parameter 'name'"}, status=400)
         
+    settings = lora_database.get_settings()
+    disable_auto = request.query.get("disable_auto", "").lower() == "true" or settings.get("disable_auto_trigger", False)
+
     conn = lora_database.get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -329,17 +408,21 @@ async def get_trigger(request):
             conn.close()
             
     if row:
-        active = row["user_trigger"] if row["user_trigger"] is not None else (row["auto_trigger"] or row["trained_words"] or "")
+        if disable_auto:
+            active = row["user_trigger"] if row["user_trigger"] is not None else ""
+        else:
+            active = row["user_trigger"] if row["user_trigger"] is not None else (row["auto_trigger"] or row["trained_words"] or "")
         return web.json_response({
             "name": name,
             "hash": row["hash"],
             "user_trigger": row["user_trigger"],
             "auto_trigger": row["auto_trigger"] or "",
             "trained_words": row["trained_words"] or "",
-            "active_trigger": active
+            "active_trigger": active,
+            "disable_auto_trigger": disable_auto
         })
         
-    return web.json_response({"name": name, "active_trigger": ""})
+    return web.json_response({"name": name, "active_trigger": "", "disable_auto_trigger": disable_auto})
 
 
 @PromptServer.instance.routes.post("/xbhh/lora/trigger/update")
@@ -352,7 +435,7 @@ async def update_trigger(request):
         
     name = data.get("name", "")
     lora_hash = data.get("hash", "")
-    trigger = data.get("trigger", "")
+    trigger = data.get("trigger")
     
     if not name and not lora_hash:
         return web.json_response({"error": "Missing name or hash"}, status=400)
@@ -427,6 +510,14 @@ async def batch_update_triggers(request):
             conn = lora_database.get_db_connection()
             cursor = conn.cursor()
             cursor.execute("UPDATE lora_global SET user_trigger = NULL WHERE hash = ?", (lora_hash,))
+            conn.commit()
+            conn.close()
+            stats["success_count"] += 1
+            stats["processed"] += 1
+        elif action == "clear_auto":
+            conn = lora_database.get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE lora_global SET user_trigger = '', auto_trigger = '' WHERE hash = ?", (lora_hash,))
             conn.commit()
             conn.close()
             stats["success_count"] += 1
@@ -562,3 +653,58 @@ async def use_lora(request):
     lora_database.sync_lfu_cache()
     
     return web.json_response({"success": True})
+
+
+@PromptServer.instance.routes.post("/xbhh/lora/test-civitai")
+async def test_civitai_api(request):
+    """测试 Civitai API Key 连通性 (优先针对 civitai.red 全能站点测试)"""
+    try:
+        data = await request.json()
+        api_key = data.get("civitai_api_key", "").strip()
+    except Exception:
+        api_key = ""
+
+    if not api_key:
+        settings = lora_database.get_settings()
+        api_key = settings.get("civitai_api_key", "").strip()
+
+    domains = ["civitai.red", "civitai.com"]
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json'
+    }
+    if api_key:
+        headers['Authorization'] = f'Bearer {api_key}'
+
+    def _do_test():
+        results = []
+        for domain in domains:
+            url = f"https://{domain}/api/v1/models?limit=1"
+            if api_key:
+                url += f"&token={api_key}"
+            try:
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    results.append((domain, response.getcode(), None))
+            except urllib.error.HTTPError as e:
+                results.append((domain, e.code, e.reason))
+            except Exception as e:
+                results.append((domain, 0, str(e)))
+        return results
+
+    results = await asyncio.to_thread(_do_test)
+    
+    success_domains = [d for d, code, _ in results if code == 200]
+    if success_domains:
+        msg = f"✅ Civitai ({' & '.join(success_domains)}) 连接正常！"
+        if api_key:
+            msg += " (API 密钥验证成功)"
+        else:
+            msg += " (当前使用匿名访问)"
+        return web.json_response({"success": True, "message": msg})
+    else:
+        err_details = [f"{d}: HTTP {code} ({err})" for d, code, err in results]
+        return web.json_response({"success": False, "message": "❌ 连接失败: " + " | ".join(err_details)})
+
+
+

@@ -1,0 +1,1470 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xbhh • LoRA 模型全景控制台</title>
+  <!-- Google Fonts Outfit & PingFang -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=PingFang+SC:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #100c19;
+      --bg-panel: rgba(24, 18, 38, 0.45);
+      --bg-card: rgba(36, 26, 56, 0.42);
+      --bg-hover: rgba(62, 48, 88, 0.5);
+      --primary: #f3a6e9;
+      --primary-accent: #e2b4d8;
+      --primary-gradient: linear-gradient(135deg, #f3a6e9 0%, #c462c9 50%, #87389f 100%);
+      --pill-active-bg: linear-gradient(135deg, rgba(243, 166, 233, 0.35), rgba(162, 82, 180, 0.45));
+      --text-main: #f5e8f8;
+      --text-muted: #bcacc7;
+      --border: rgba(235, 140, 215, 0.22);
+      --border-hover: rgba(243, 166, 233, 0.55);
+      --accent-blue: #9cd2f8;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    /* 自定义二次元发光光标 (Melodify Style Cursor) */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="4" fill="%23f3a6e9" opacity="0.95"/><circle cx="10" cy="10" r="8" fill="none" stroke="%23f3a6e9" stroke-width="1.5" opacity="0.4"/></svg>') 10 10, auto;
+    }
+
+    button,
+    a,
+    select,
+    input,
+    .folder-item,
+    .lora-card,
+    .menu-item {
+      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5" fill="%23e2b4d8" opacity="1"/><circle cx="10" cy="10" r="9" fill="none" stroke="%23e2b4d8" stroke-width="2" opacity="0.6"/></svg>') 10 10, pointer !important;
+    }
+
+    /* 光标跟随环 */
+    #cursor-follower {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 26px;
+      height: 26px;
+      border: 1.5px solid rgba(243, 166, 233, 0.6);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 99999;
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease-out, width 0.2s, height 0.2s, border-color 0.2s;
+      box-shadow: 0 0 10px rgba(243, 166, 233, 0.3);
+    }
+
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: "Outfit", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 滚动条美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(20, 16, 30, 0.5);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(226, 180, 216, 0.25);
+      border-radius: 6px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(243, 166, 233, 0.5);
+    }
+
+    /* 1. 顶栏横向铺满 (Full-width Topbar) */
+    #topbar {
+      width: 100%;
+      height: 60px;
+      background: rgba(22, 16, 34, 0.65);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, #f3a6e9 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-tag {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(243, 166, 233, 0.15);
+      border: 1px solid rgba(243, 166, 233, 0.3);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* 顶栏集成的搜索与操作按钮 */
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+    }
+
+    .search-box {
+      padding: 7px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: rgba(18, 14, 28, 0.8);
+      color: var(--text-main);
+      width: 240px;
+      outline: none;
+      font-size: 13px;
+      transition: all 0.25s ease;
+    }
+
+    .search-box:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(243, 166, 233, 0.3);
+    }
+
+    .btn {
+      background: rgba(45, 34, 66, 0.7);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 6px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.25s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn:hover:not(.active):not(.btn-off) {
+      background: var(--bg-hover);
+      border-color: var(--primary);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(243, 166, 233, 0.2);
+    }
+
+    .btn.active {
+      background: var(--primary-gradient);
+      color: #fff;
+      border-color: transparent;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(243, 166, 233, 0.35);
+    }
+
+    .btn.btn-off {
+      background: rgba(255, 152, 0, 0.18);
+      color: #ffca28;
+      border-color: rgba(255, 152, 0, 0.4);
+    }
+
+    /* 2. 下面部分拆成左右 (Left Directory Tree & Right LoRA View) */
+    #app-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+      padding: 12px;
+      gap: 12px;
+    }
+
+    /* 左边：目录侧边栏 (Sidebar Directory) */
+    #sidebar {
+      width: 280px;
+      min-width: 200px;
+      max-width: 450px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .sidebar-header {
+      padding: 14px 16px;
+      font-weight: 600;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(42, 32, 60, 0.5);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #folder-tree {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    /* 目录节点层级 */
+    .folder-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+      user-select: none;
+      border: 1px solid transparent;
+    }
+
+    .folder-item:hover {
+      background: var(--bg-hover);
+      color: #fff;
+      transform: translateX(2px);
+    }
+
+    .folder-item.active {
+      background: var(--pill-active-bg);
+      border: 1px solid var(--border-hover);
+      border-left: 3px solid var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .folder-arrow {
+      font-size: 10px;
+      color: var(--primary);
+      transition: transform 0.2s ease;
+    }
+
+    /* 文件夹简介卡片 */
+    #folder-desc {
+      height: 140px;
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+      overflow-y: auto;
+      background: rgba(22, 17, 34, 0.6);
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-muted);
+    }
+
+    #folder-desc h4 {
+      margin: 0 0 6px 0;
+      color: var(--primary);
+      font-size: 12px;
+    }
+
+    /* 右边：显示 LoRA (Main Display Content) */
+    #main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .legend-bar {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 12px 20px 4px 20px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+    }
+
+    /* 内容区 */
+    #content-area {
+      flex: 1;
+      overflow: auto;
+      padding: 10px 20px 70px 20px;
+      position: relative;
+    }
+
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: block;
+      color: var(--primary);
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 10;
+    }
+
+    /* 图标视图 Grid Cards */
+    #icon-view {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 14px;
+      display: none;
+      padding-top: 4px;
+    }
+
+    .lora-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .lora-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px rgba(243, 166, 233, 0.2);
+      border-color: var(--primary);
+    }
+
+    .lora-card.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 14px rgba(243, 166, 233, 0.35);
+    }
+
+    .lora-card.has-user-trigger {
+      background: rgba(46, 34, 66, 0.85);
+      border-color: rgba(243, 166, 233, 0.45);
+    }
+
+    .user-trigger-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      z-index: 4;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: var(--primary-gradient);
+      color: #fff;
+      font-weight: bold;
+      pointer-events: none;
+    }
+
+    .lora-img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      background: rgba(15, 12, 22, 0.8);
+      display: block;
+    }
+
+    .lora-img-placeholder {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(25, 19, 36, 0.8);
+      color: rgba(243, 166, 233, 0.3);
+      font-size: 38px;
+    }
+
+    .lora-name {
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-main);
+    }
+
+    .card-checkbox {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      z-index: 5;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+
+    /* 列表视图 Table */
+    #list-view {
+      display: none;
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    #list-view th,
+    #list-view td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 12px;
+    }
+
+    #list-view th {
+      position: sticky;
+      top: 0;
+      background: rgba(38, 29, 56, 0.95);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    #list-view tbody tr {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #list-view tbody tr:hover {
+      background: rgba(243, 166, 233, 0.08);
+    }
+
+    #list-view tbody tr.has-user-trigger {
+      background: rgba(243, 166, 233, 0.12);
+    }
+
+    #list-view tbody tr.selected {
+      background: rgba(243, 166, 233, 0.22);
+    }
+
+    /* 底部批量操作栏 */
+    #batch-toolbar {
+      position: absolute;
+      bottom: -70px;
+      left: 0;
+      right: 0;
+      height: 55px;
+      background: rgba(30, 22, 44, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.6);
+      transition: bottom 0.3s ease;
+      z-index: 90;
+    }
+
+    #batch-toolbar.show {
+      bottom: 0;
+    }
+
+    .batch-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* 模态弹窗 */
+    #detail-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(14, 10, 22, 0.82);
+      backdrop-filter: blur(12px);
+      z-index: 10000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: rgba(30, 23, 44, 0.96);
+      border: 1px solid var(--primary);
+      width: 84%;
+      max-width: 1000px;
+      height: 82%;
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    }
+
+    .modal-header {
+      padding: 14px 20px;
+      background: rgba(42, 32, 60, 0.8);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .close-btn {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 22px;
+    }
+
+    .close-btn:hover {
+      color: var(--primary);
+    }
+
+    .modal-body {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      gap: 18px;
+    }
+
+    .param-section {
+      background: rgba(22, 17, 33, 0.6);
+      padding: 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .param-section h3 {
+      margin-top: 0;
+      font-size: 13px;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .param-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .param-key {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .param-val {
+      font-size: 12px;
+      color: var(--text-main);
+      background: rgba(16, 12, 24, 0.6);
+      padding: 4px 8px;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+
+    .trigger-textarea {
+      background: rgba(16, 12, 24, 0.8);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 8px;
+      border-radius: 8px;
+      resize: vertical;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .trigger-textarea:focus {
+      border-color: var(--primary);
+    }
+
+    /* 悬浮预览 Popover */
+    #image-preview-popover {
+      display: none;
+      position: fixed;
+      z-index: 10005;
+      pointer-events: none;
+      background: rgba(30, 23, 44, 0.96);
+      border: 1px solid var(--primary);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(16px);
+      transition: opacity 0.2s ease;
+      width: 320px;
+      box-sizing: border-box;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* 右键菜单 */
+    #context-menu {
+      position: absolute;
+      background: rgba(32, 24, 46, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-md);
+      padding: 4px 0;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      z-index: 9999;
+      display: none;
+    }
+
+    .menu-item {
+      padding: 7px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+
+    .menu-item:hover {
+      background: var(--primary-gradient);
+      color: #fff;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 1. 顶栏横向位置铺满 (Full-width Topbar) -->
+  <header id="topbar">
+    <!-- 顶栏左侧：品牌标识 + 隐藏目录图标按钮 + 搜索框 -->
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="brand-box">
+        <span class="brand-title">xbhh • LoRA Manager</span>
+        <span class="brand-tag">Demo Preview</span>
+      </div>
+
+      <!-- 隐藏目录仅保留一个图标 ≡ -->
+      <button class="btn" id="btn-toggle-sidebar" title="隐藏/展开目录栏"
+        style="padding: 6px; width: 34px; height: 34px; justify-content: center; font-size: 16px; font-weight: bold;">≡</button>
+
+      <!-- 搜索框紧跟在左侧 -->
+      <input type="text" id="search-input" class="search-box" placeholder="🔍 输入名称或触发词搜索..." />
+    </div>
+
+    <!-- 顶栏右侧：规则过滤与工具按钮 -->
+    <div class="topbar-controls">
+      <select id="filter-rule-select" class="search-box"
+        style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;" title="按规则过滤 LoRA 视图">
+        <option value="all">🌐 全部 LoRA</option>
+        <option value="hide_custom">🙈 过滤已自定义</option>
+        <option value="only_custom">🎯 仅看已自定义</option>
+        <option value="no_trigger">⚠️ 无触发词</option>
+      </select>
+
+      <div class="toolbar-select-actions" id="select-actions" style="display: flex; gap: 6px;">
+        <button class="btn" id="btn-toggle-auto-trigger" title="点击开启或关闭自动提示词功能">⚡ 自动提示词：开启</button>
+        <button class="btn" id="btn-recalc-triggers" title="按训练标签最高频次重新计算自动触发词">🔄 重算高频词</button>
+        <button class="btn" id="btn-select-all">☑ 全选</button>
+        <button class="btn" id="btn-select-invert" style="display: none;">⇄ 反选</button>
+        <button class="btn" id="btn-select-none" style="display: none;">☐ 取消</button>
+      </div>
+
+      <button class="btn" id="btn-toggle-view" title="点击切换列表/图标视图">🖼️ 图标视图</button>
+      <button class="btn" id="btn-open-settings" title="全局系统设置 (包含 Civitai API Key)">⚙️ 设置</button>
+    </div>
+  </header>
+
+  <!-- 2. 下面部分拆成左右 (Left Directory Tree & Right LoRA View) -->
+  <div id="app-body">
+    <!-- 左边：目录 (Directory Tree) -->
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <span>≡ 目录</span>
+      </div>
+      <div id="folder-tree">
+        <!-- 目录列表由 JS 动态生成 -->
+      </div>
+      <div id="folder-desc">
+        <h4>文件夹简介</h4>
+        <div id="folder-desc-content">路径: D:\sd-webui-aki-v4.9\models\Lora\衣服</div>
+      </div>
+    </div>
+
+    <!-- 右边：显示 LoRA (LoRA Cards & Details View) -->
+    <div id="main-content">
+      <div class="legend-bar">
+        <div class="legend-item">
+          <span class="legend-swatch"></span>
+          <span>已设置自定义触发词</span>
+        </div>
+      </div>
+
+      <!-- 内容渲染区 -->
+      <div id="content-area">
+        <div id="loading">✨ 加载中，请稍候...</div>
+
+        <!-- 列表视图容器 -->
+        <table id="list-view">
+          <thead>
+            <tr id="list-header">
+              <th style="width: 36px;"><input type="checkbox" id="select-all-list" /></th>
+              <th>文件名</th>
+              <!-- 列动态生成 -->
+            </tr>
+          </thead>
+          <tbody id="list-body"></tbody>
+        </table>
+
+        <!-- 图标视图容器 -->
+        <div id="icon-view"></div>
+      </div>
+
+      <!-- 批量操作栏 -->
+      <div id="batch-toolbar">
+        <div style="font-size: 13px; color: var(--primary); font-weight: 500;">
+          已选择 <span id="selected-count" style="font-weight: bold; font-size: 15px;">0</span> 个模型
+        </div>
+        <div class="batch-actions">
+          <button class="btn" onclick="handleBatchAction('auto')">🪄 批量应用高频词</button>
+          <button class="btn" onclick="handleBatchAction('civitai')">🌐 批量拉取Civitai</button>
+          <button class="btn" onclick="handleBatchAction('reset')"
+            style="background: rgba(255, 82, 82, 0.15); border-color: rgba(255, 82, 82, 0.3); color: #ff8a8a;">🗑️
+            批量重置提示词</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.5秒大图悬浮窗 -->
+  <div id="image-preview-popover">
+    <img id="image-preview-img"
+      style="width:100%; max-height:260px; object-fit:contain; border-radius:8px; background:#111; display:none;" />
+    <div id="image-preview-details" style="font-size:12px; color:var(--text-main);"></div>
+  </div>
+
+  <!-- 右键菜单 -->
+  <div id="context-menu">
+    <div class="menu-item" id="menu-detail">📊 查看详细参数</div>
+  </div>
+
+  <!-- 详细参数弹窗 -->
+  <div id="detail-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">xbhh LoRA 详细参数</div>
+        <div class="close-btn" id="modal-close">&times;</div>
+      </div>
+      <div class="modal-body">
+        <!-- 左列 -->
+        <div style="flex: 1.2; display: flex; flex-direction: column; overflow-y: auto;">
+          <div class="param-section">
+            <h3 id="sec-basic-header"
+              style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <span>基本信息</span>
+              <span id="sec-basic-icon" style="font-size: 11px; color: var(--primary);">▼</span>
+            </h3>
+            <div id="sec-basic-body" style="margin-top: 10px;">
+              <div class="grid-2">
+                <div class="param-item">
+                  <span class="param-key">基础模型</span>
+                  <span class="param-val" id="md-base"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">模型 Hash</span>
+                  <span class="param-val" id="md-hash"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">模型大小</span>
+                  <span class="param-val" id="md-size"></span>
+                </div>
+                <div class="param-item" style="grid-column: span 2;">
+                  <span class="param-key">相对位置</span>
+                  <span class="param-val" id="md-rel-path" style="word-break: break-all;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="param-section">
+            <h3 id="sec-train-header"
+              style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <span>训练参数</span>
+              <span id="sec-train-icon" style="font-size: 11px; color: var(--primary);">▼</span>
+            </h3>
+            <div id="sec-train-body" style="margin-top: 10px;">
+              <div class="grid-2">
+                <div class="param-item">
+                  <span class="param-key">结构类型</span>
+                  <span class="param-val" id="md-module"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">Rank / Alpha</span>
+                  <span class="param-val" id="md-dim"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">Epochs</span>
+                  <span class="param-val" id="md-epoch"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">分辨率</span>
+                  <span class="param-val" id="md-res"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">学习率 (UNet)</span>
+                  <span class="param-val" id="md-lr"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">学习率 (TE)</span>
+                  <span class="param-val" id="md-te-lr"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="param-section">
+            <h3 id="sec-misc-header"
+              style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <span>杂项（JSON 原始记录）</span>
+              <span id="sec-misc-icon" style="font-size: 11px; color: var(--primary);">▼</span>
+            </h3>
+            <div id="sec-misc-body" style="margin-top: 10px;">
+              <pre id="md-raw"
+                style="font-size: 11px; color: var(--text-muted); background: rgba(16, 12, 24, 0.8); padding: 8px; border-radius: 6px; max-height: 180px; overflow: auto; margin: 0;"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列 -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
+          <div class="param-section" style="display: flex; flex-direction: column; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="margin: 0;">触发词编辑与预设</h3>
+              <button class="btn" id="btn-add-preset-modal"
+                style="padding: 2px 10px; font-size: 11px; height: 24px; background: var(--primary-gradient); color: #fff; font-weight: bold; border: none;">➕
+                添加预设</button>
+            </div>
+
+            <div id="preset-cards-container"
+              style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;"></div>
+
+            <div class="trigger-input-wrapper" id="single-trigger-wrapper" style="width: 100%; box-sizing: border-box;">
+              <span class="param-key">自定义触发词</span>
+              <textarea id="modal-trigger-input" class="trigger-textarea"
+                style="width: 100%; box-sizing: border-box; min-height: 60px;" placeholder="输入自定义触发词..."></textarea>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <button class="btn" id="btn-save-trigger"
+                  style="background: var(--primary-gradient); border: none; font-weight: bold; flex: 1.2; justify-content: center; color: white;">保存触发词</button>
+                <button class="btn" id="btn-reset-trigger" style="flex: 1; justify-content: center;">清除自定义</button>
+              </div>
+            </div>
+
+            <div class="pill-group" id="auto-trigger-group" style="margin-top: 10px;">
+              <div class="param-key" style="margin-bottom: 4px;">训练标签高频词 - 点击添加</div>
+              <div id="auto-trigger-pills"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全局系统设置弹窗 -->
+  <div id="settings-modal"
+    style="display: none; position: fixed; inset: 0; background: rgba(14, 10, 22, 0.82); z-index: 20000; align-items: center; justify-content: center; backdrop-filter: blur(12px);">
+    <div class="modal-content"
+      style="width: 460px; max-width: 90vw; height: auto; background: rgba(30, 23, 44, 0.96); border: 1px solid var(--primary); border-radius: var(--radius-lg); padding: 22px; box-shadow: 0 16px 40px rgba(0,0,0,0.8); color: var(--text-main);">
+      <div class="modal-header"
+        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-bottom: 14px; background: transparent;">
+        <div class="modal-title" style="font-size: 15px; font-weight: bold; color: var(--primary);">⚙️ xbhh 系统全局设置</div>
+        <div class="close-btn" id="settings-modal-close"
+          style="cursor: pointer; font-size: 20px; color: var(--text-muted);">&times;</div>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; padding: 0; overflow: visible;">
+        <div class="param-section"
+          style="background: rgba(16, 12, 24, 0.6); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-md);">
+          <h3 style="margin-top: 0; margin-bottom: 6px; font-size: 13px; color: var(--primary);">🌐 Civitai API Key</h3>
+          <form onsubmit="return false;"
+            style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px; width: 100%;">
+            <input type="password" id="input-civitai-api-key" autocomplete="current-password"
+              placeholder="粘贴 Civitai API Token..."
+              style="flex: 1; padding: 7px 12px; background: rgba(20, 15, 30, 0.9); border: 1px solid var(--border); border-radius: 16px; color: #fff; font-size: 12px; outline: none;" />
+            <button type="button" class="btn" id="btn-toggle-key-visibility"
+              style="padding: 6px 10px; font-size: 12px;">👁️</button>
+          </form>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn" id="btn-test-civitai-key"
+              style="background: var(--primary-gradient); color: #fff; border: none; padding: 5px 12px; font-size: 11px; font-weight: bold;">🧪
+              测试连通性</button>
+            <span id="test-key-result" style="font-size: 11px; flex: 1;"></span>
+          </div>
+        </div>
+
+        <div class="param-section"
+          style="background: rgba(16, 12, 24, 0.6); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-md);">
+          <h3
+            style="margin-top: 0; margin-bottom: 6px; font-size: 13px; color: var(--primary); display: flex; justify-content: space-between; align-items: center;">
+            <span>🖼️ 悬浮预览尺寸</span>
+            <span id="preview-size-display" style="color: var(--primary); font-weight: bold; font-size: 12px;">280
+              px</span>
+          </h3>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="range" id="input-hover-image-size" min="150" max="500" step="10" value="280"
+              style="flex: 1; accent-color: var(--primary); cursor: pointer;" />
+            <button type="button" class="btn" id="btn-reset-preview-size"
+              style="padding: 3px 10px; font-size: 11px;">重置</button>
+          </div>
+        </div>
+      </div>
+      <div
+        style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px;">
+        <button class="btn" id="settings-modal-cancel" style="padding: 5px 14px;">取消</button>
+        <button class="btn" id="settings-modal-save"
+          style="background: var(--primary-gradient); color: white; border: none; font-weight: bold; padding: 5px 18px;">保存配置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 逻辑 JavaScript -->
+  <script>
+    let currentFolder = "";
+    let currentLoras = [];
+    let metadataCache = {};
+    let viewMode = "icon";
+    let currentLoraDetail = null;
+    let trieIndex = null;
+    let disableAutoTrigger = false;
+    let currentFilterRule = "all";
+    let selectedLoraNames = new Set();
+    let civitaiApiKey = "";
+    let hoverImageSize = 280;
+    let hoverTimer = null;
+
+    async function fetchAPI(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
+    }
+
+    async function postAPI(url, data) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return await response.json();
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes || isNaN(bytes)) return "-";
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unitIdx = 0;
+      while (size >= 1024 && unitIdx < units.length - 1) {
+        size /= 1024;
+        unitIdx++;
+      }
+      return `${size.toFixed(1)} ${units[unitIdx]}`;
+    }
+
+    async function init() {
+      try {
+        const settings = await fetchAPI("/xbhh/lora/settings");
+        disableAutoTrigger = !!settings.disable_auto_trigger;
+        civitaiApiKey = settings.civitai_api_key || "";
+
+        const savedSize = localStorage.getItem("xbhh_hover_image_size");
+        if (savedSize) hoverImageSize = parseInt(savedSize, 10);
+      } catch (e) {
+        console.warn("[xbhh] Unable to load settings:", e);
+      }
+
+      updateAutoTriggerBtnUI();
+      await loadFolderTree();
+      setupEventListeners();
+    }
+
+    function updateAutoTriggerBtnUI() {
+      const btn = document.getElementById("btn-toggle-auto-trigger");
+      if (!btn) return;
+      if (disableAutoTrigger) {
+        btn.innerText = "⚡ 自动提示词：关";
+        btn.classList.add("btn-off");
+      } else {
+        btn.innerText = "⚡ 自动提示词：开";
+        btn.classList.remove("btn-off");
+      }
+    }
+
+      async function loadFolderTree() {
+        let folders = [];
+        try {
+          const data = await fetchAPI("/xbhh/lora/folders");
+          folders = data.folders || [];
+        } catch (e) {
+          console.warn("Folder API unavailable in static demo mode");
+        }
+
+        const treeContainer = document.getElementById("folder-tree");
+        treeContainer.innerHTML = "";
+        renderFolderNodes(folders, treeContainer, 0);
+      }
+
+    function renderFolderNodes(nodes, container, depth) {
+      nodes.forEach((node) => {
+        const div = document.createElement("div");
+        div.className = "folder-item";
+        div.style.paddingLeft = `${12 + depth * 14}px`;
+
+        const arrow = document.createElement("span");
+        arrow.className = "folder-arrow";
+        arrow.textContent = node.children && node.children.length > 0 ? "▾" : "•";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = node.name;
+
+        div.appendChild(arrow);
+        div.appendChild(nameSpan);
+
+        if (node.path === currentFolder || node.name === "衣服") div.classList.add("active");
+
+        div.onclick = (e) => {
+          e.stopPropagation();
+          selectFolder(node.path, node.desc);
+          document
+            .querySelectorAll(".folder-item")
+            .forEach((el) => el.classList.remove("active"));
+          div.classList.add("active");
+        };
+
+        container.appendChild(div);
+
+        if (node.children && node.children.length > 0) {
+          renderFolderNodes(node.children, container, depth + 1);
+        }
+      });
+    }
+
+    async function selectFolder(path, desc) {
+      currentFolder = path;
+      selectedLoraNames.clear();
+      updateBatchToolbarUI();
+
+      const descEl = document.getElementById("folder-desc-content");
+      if (descEl) descEl.innerText = desc || `路径: ${path}`;
+
+      document.getElementById("loading").style.display = "block";
+      document.getElementById("list-view").style.display = "none";
+      document.getElementById("icon-view").style.display = "none";
+
+      let loadedLoras = [];
+      try {
+        const data = await fetchAPI(`/xbhh/lora/metadata-batch?folder=${encodeURIComponent(path)}`);
+        loadedLoras = data.items || [];
+      } catch (e) {
+        console.warn("Metadata API unavailable in static demo mode");
+      }
+
+      currentLoras = loadedLoras;
+      metadataCache = {};
+      currentLoras.forEach((item) => {
+        metadataCache[item.name] = item;
+      });
+
+      document.getElementById("loading").style.display = "none";
+      renderCurrentView();
+    }
+
+    function renderCurrentView() {
+      const searchVal = document.getElementById("search-input").value.trim().toLowerCase();
+      let filtered = currentLoras;
+
+      if (searchVal) {
+        filtered = currentLoras.filter((item) => {
+          const nameMatch = item.name.toLowerCase().includes(searchVal);
+          const triggerMatch = (item.db_info?.active_trigger || "").toLowerCase().includes(searchVal);
+          return nameMatch || triggerMatch;
+        });
+      }
+
+      if (currentFilterRule === "hide_custom") {
+        filtered = filtered.filter((item) => !item.db_info?.user_trigger);
+      } else if (currentFilterRule === "only_custom") {
+        filtered = filtered.filter((item) => !!item.db_info?.user_trigger);
+      } else if (currentFilterRule === "no_trigger") {
+        filtered = filtered.filter((item) => !item.db_info?.active_trigger);
+      }
+
+      if (viewMode === "icon") {
+        document.getElementById("list-view").style.display = "none";
+        renderIconView(filtered);
+      } else {
+        document.getElementById("icon-view").style.display = "none";
+        renderListView(filtered);
+      }
+    }
+
+    function renderIconView(loras) {
+      const container = document.getElementById("icon-view");
+      container.innerHTML = "";
+      container.style.display = "grid";
+
+      loras.forEach((lora) => {
+        const card = document.createElement("div");
+        card.className = "lora-card";
+        if (selectedLoraNames.has(lora.name)) card.classList.add("selected");
+        if (lora.db_info?.user_trigger) card.classList.add("has-user-trigger");
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "card-checkbox";
+        checkbox.checked = selectedLoraNames.has(lora.name);
+        checkbox.onchange = (e) => {
+          e.stopPropagation();
+          if (checkbox.checked) selectedLoraNames.add(lora.name);
+          else selectedLoraNames.delete(lora.name);
+          card.classList.toggle("selected", checkbox.checked);
+          updateBatchToolbarUI();
+        };
+        card.appendChild(checkbox);
+
+        if (lora.db_info?.user_trigger) {
+          const badge = document.createElement("div");
+          badge.className = "user-trigger-badge";
+          badge.innerText = "自定义";
+          card.appendChild(badge);
+        }
+
+        if (lora.preview_image) {
+          const img = document.createElement("img");
+          img.className = "lora-img";
+          img.src = `/xbhh/view/${encodeURIComponent(lora.preview_image)}`;
+          img.loading = "lazy";
+          card.appendChild(img);
+        } else {
+          const placeholder = document.createElement("div");
+          placeholder.className = "lora-img-placeholder";
+          placeholder.innerText = "🌸";
+          card.appendChild(placeholder);
+        }
+
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "lora-name";
+        nameDiv.innerText = lora.name.split("/").pop().split("\\").pop();
+        nameDiv.title = lora.name;
+        card.appendChild(nameDiv);
+
+        card.onclick = () => openDetailModal(lora);
+        card.onmouseenter = (e) => handleHoverStart(e, lora);
+        card.onmouseleave = () => handleHoverEnd();
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderListView(loras) {
+      const table = document.getElementById("list-view");
+      const tbody = document.getElementById("list-body");
+      tbody.innerHTML = "";
+      table.style.display = "table";
+
+      loras.forEach((lora) => {
+        const tr = document.createElement("tr");
+        if (selectedLoraNames.has(lora.name)) tr.classList.add("selected");
+        if (lora.db_info?.user_trigger) tr.classList.add("has-user-trigger");
+
+        const tdCheck = document.createElement("td");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = selectedLoraNames.has(lora.name);
+        cb.onchange = (e) => {
+          e.stopPropagation();
+          if (cb.checked) selectedLoraNames.add(lora.name);
+          else selectedLoraNames.delete(lora.name);
+          tr.classList.toggle("selected", cb.checked);
+          updateBatchToolbarUI();
+        };
+        tdCheck.appendChild(cb);
+        tr.appendChild(tdCheck);
+
+        const tdName = document.createElement("td");
+        tdName.innerText = lora.name;
+        tr.appendChild(tdName);
+
+        tr.onclick = () => openDetailModal(lora);
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateBatchToolbarUI() {
+      const toolbar = document.getElementById("batch-toolbar");
+      const countSpan = document.getElementById("selected-count");
+      if (!toolbar || !countSpan) return;
+
+      countSpan.innerText = selectedLoraNames.size;
+      if (selectedLoraNames.size > 0) toolbar.classList.add("show");
+      else toolbar.classList.remove("show");
+    }
+
+    function openDetailModal(lora) {
+      currentLoraDetail = lora;
+      document.getElementById("modal-title").innerText = `xbhh LoRA 详细参数: ${lora.name.split("/").pop()}`;
+
+      document.getElementById("md-base").innerText = lora.training_params?.base_model || "未知";
+      document.getElementById("md-hash").innerText = lora.db_info?.hash || "-";
+      document.getElementById("md-size").innerText = formatFileSize(lora.file_info?.size);
+      document.getElementById("md-rel-path").innerText = lora.name;
+
+      document.getElementById("md-module").innerText = lora.training_params?.network_module || "-";
+      document.getElementById("md-dim").innerText = lora.training_params?.network_dim || "-";
+      document.getElementById("md-epoch").innerText = lora.training_params?.num_epochs || "-";
+      document.getElementById("md-res").innerText = lora.training_params?.resolution || "-";
+      document.getElementById("md-lr").innerText = lora.training_params?.unet_lr || "-";
+      document.getElementById("md-te-lr").innerText = lora.training_params?.text_encoder_lr || "-";
+
+      document.getElementById("md-raw").innerText = JSON.stringify(lora, null, 2);
+
+      const trigInput = document.getElementById("modal-trigger-input");
+      if (trigInput) trigInput.value = lora.db_info?.user_trigger || lora.db_info?.active_trigger || "";
+
+      document.getElementById("detail-modal").style.display = "flex";
+    }
+
+    function setupEventListeners() {
+      const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
+      const sidebar = document.getElementById("sidebar");
+      if (btnToggleSidebar && sidebar) {
+        btnToggleSidebar.onclick = () => {
+          if (sidebar.style.display === "none") {
+            sidebar.style.display = "flex";
+            btnToggleSidebar.classList.add("active");
+          } else {
+            sidebar.style.display = "none";
+            btnToggleSidebar.classList.remove("active");
+          }
+        };
+      }
+
+      document.getElementById("modal-close").onclick = () => {
+        document.getElementById("detail-modal").style.display = "none";
+      };
+
+      document.getElementById("btn-toggle-view").onclick = () => {
+        viewMode = viewMode === "icon" ? "list" : "icon";
+        document.getElementById("btn-toggle-view").innerText = viewMode === "icon" ? "📄 列表视图" : "🖼️ 图标视图";
+        renderCurrentView();
+      };
+
+      document.getElementById("search-input").oninput = () => renderCurrentView();
+
+      document.getElementById("filter-rule-select").onchange = (e) => {
+        currentFilterRule = e.target.value;
+        renderCurrentView();
+      };
+
+      document.getElementById("btn-open-settings").onclick = () => {
+        document.getElementById("settings-modal").style.display = "flex";
+      };
+      document.getElementById("settings-modal-close").onclick = () => {
+        document.getElementById("settings-modal").style.display = "none";
+      };
+      document.getElementById("settings-modal-cancel").onclick = () => {
+        document.getElementById("settings-modal").style.display = "none";
+      };
+    }
+
+    function handleHoverStart(e, lora) {
+      clearTimeout(hoverTimer);
+      const targetEl = e.currentTarget;
+      hoverTimer = setTimeout(() => showHoverCard(targetEl, lora), 1200);
+    }
+
+    function handleHoverEnd() {
+      clearTimeout(hoverTimer);
+      const popover = document.getElementById("image-preview-popover");
+      if (popover) popover.style.display = "none";
+    }
+
+    function showHoverCard(element, lora) {
+      const popover = document.getElementById("image-preview-popover");
+      const img = document.getElementById("image-preview-img");
+      const details = document.getElementById("image-preview-details");
+      if (!popover || !img || !details || !lora) return;
+
+      if (lora.preview_image) {
+        img.src = `/xbhh/view/${encodeURIComponent(lora.preview_image)}`;
+        img.style.display = "block";
+      } else {
+        img.style.display = "none";
+      }
+
+      const tp = lora.training_params || {};
+      details.innerHTML = `
+          <div style="font-weight:bold; color:var(--primary); margin-bottom:4px;">${lora.name.split("/").pop()}</div>
+          <div>基础模型: ${tp.base_model || "-"}</div>
+          <div>Dim/Rank: ${tp.network_dim || "-"}</div>
+          <div>触发词: ${lora.db_info?.active_trigger || "无"}</div>
+        `;
+
+      popover.style.display = "flex";
+      const rect = element.getBoundingClientRect();
+      popover.style.left = `${rect.right + 12}px`;
+      popover.style.top = `${rect.top}px`;
+    }
+
+    // --- 1. 动态网页标签标题 (Melodify 在线/离开 自动切换) ---
+    (function initDynamicTabTitle() {
+      const originalTitle = "xbhh • LoRA 模型全景控制台 | 秘境";
+      let titleTimer = null;
+
+      window.addEventListener("blur", () => {
+        document.title = "(つ 皿 ⊂) 崩溃啦！快回来~ | xbhh LoRA";
+      });
+
+      window.addEventListener("focus", () => {
+        document.title = "( ╰(‵□′)╯ 欢迎回来！ ) | xbhh LoRA";
+        clearTimeout(titleTimer);
+        titleTimer = setTimeout(() => {
+          document.title = originalTitle;
+        }, 2000);
+      });
+    })();
+
+    // --- 2. 梦幻飘雪/花瓣背景 Canvas 效果 ---
+    (function initSnowCanvas() {
+      const canvas = document.createElement("canvas");
+      canvas.id = "snow-canvas";
+      canvas.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;";
+      document.body.appendChild(canvas);
+
+      const ctx = canvas.getContext("2d");
+      let width = canvas.width = window.innerWidth;
+      let height = canvas.height = window.innerHeight;
+
+      window.addEventListener("resize", () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+      });
+
+      const flakes = [];
+      const numFlakes = 95;
+
+      for (let i = 0; i < numFlakes; i++) {
+        flakes.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: Math.random() * 2.5 + 1.0,
+          d: Math.random() * 1 + 0.5,
+          opacity: Math.random() * 0.85 + 0.35,
+          step: Math.random() * 0.05,
+          color: Math.random() > 0.3 ? "rgba(243, 166, 233, " : "rgba(255, 255, 255, "
+        });
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let f of flakes) {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
+          ctx.fillStyle = f.color + f.opacity + ")";
+          ctx.shadowBlur = f.r * 4;
+          ctx.shadowColor = "rgba(243, 166, 233, 0.6)";
+          ctx.fill();
+
+          f.y += Math.cos(f.d) + 1.2 + f.r / 2;
+          f.x += Math.sin(f.step) * 0.7;
+          f.step += 0.01;
+
+          if (f.y > height + 10) {
+            f.y = -10;
+            f.x = Math.random() * width;
+          }
+        }
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+
+    // --- 3. 自定义光标跟随环与微光特效 ---
+    (function initCustomCursor() {
+      const follower = document.createElement("div");
+      follower.id = "cursor-follower";
+      document.body.appendChild(follower);
+
+      let mouseX = 0, mouseY = 0;
+      let followerX = 0, followerY = 0;
+
+      window.addEventListener("mousemove", (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      });
+
+      function animateCursor() {
+        followerX += (mouseX - followerX) * 0.2;
+        followerY += (mouseY - followerY) * 0.2;
+        follower.style.left = followerX + "px";
+        follower.style.top = followerY + "px";
+        requestAnimationFrame(animateCursor);
+      }
+      animateCursor();
+    })();
+
+    window.onload = init;
+  </script>
+</body>
+
+</html>
