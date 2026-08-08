@@ -32,8 +32,17 @@ export class Live2DV2Pet {
 
   destroy() {
     console.log("[XBHH] Destroying V2 instance...");
+    this.pauseRenderLoop();
     if (this._onSwitchModel) {
         window.removeEventListener("xbhh-live2d-switch", this._onSwitchModel);
+    }
+    if (this._onVisibilityChange) {
+        document.removeEventListener("visibilitychange", this._onVisibilityChange);
+    }
+    const canvas = document.getElementById("live2d");
+    if (canvas) {
+        if (this._onContextLost) canvas.removeEventListener("webglcontextlost", this._onContextLost);
+        if (this._onContextRestored) canvas.removeEventListener("webglcontextrestored", this._onContextRestored);
     }
     const waifu = document.getElementById("waifu");
     if (waifu) waifu.remove();
@@ -169,11 +178,18 @@ export class Live2DV2Pet {
                 try {
                     const resp = await fetch('/xbhh/live2d_models');
                     const data = await resp.json();
+
+                    if (!data.v2 || data.v2.length === 0) {
+                        console.warn("[XBHH] No V2 models found, destroying waifu container.");
+                        document.getElementById("waifu")?.remove();
+                        document.getElementById("xbhh-v2-fix-style")?.remove();
+                        return false;
+                    }
                     
                     // 2. 校验 V2 模型 Id
                     let modelId = parseInt(localStorage.getItem("modelId"), 10);
                     if (!isNaN(modelId)) {
-                        if (!data.v2 || data.v2.length === 0 || modelId >= data.v2.length) {
+                        if (modelId >= data.v2.length) {
                              console.warn("[XBHH] modelId out of bounds, resetting to 0");
                              localStorage.setItem("modelId", "0");
                              modelId = 0;
@@ -186,11 +202,14 @@ export class Live2DV2Pet {
                             localStorage.setItem("modelTexturesId", "0");
                         }
                     }
+                    return true;
                 } catch (e) {
                     console.error("[XBHH] Failed to check and fix config:", e);
+                    return true;
                 }
             };
-            await checkAndFixConfig();
+            const valid = await checkAndFixConfig();
+            if (valid === false) return;
 
             window.initWidget({
                 waifuPath: '/xbhh/waifu-tips.json?v=' + Date.now(),
@@ -204,19 +223,61 @@ export class Live2DV2Pet {
             // 劫持 Cubism2 渲染循环，降帧率到 15fps
             this.throttleRenderLoop();
 
-            // 页面不可见时暂停渲染
+            // 页面不可见时暂停渲染，切回页面时深度重置动画状态并恢复渲染循环
             this._onVisibilityChange = () => {
                 if (document.hidden) {
                     this.pauseRenderLoop();
                     console.log("[XBHH] V2 render paused (page hidden)");
-                } else if (!this.config.minimized) {
+                } else {
+                    this.pauseRenderLoop(); // 彻底清理旧的 rAF 句柄
+                    try {
+                        if (window.xbhhModelInstance && window.xbhhModelInstance.cubism2model) {
+                            const cubism2 = window.xbhhModelInstance.cubism2model;
+                            if (cubism2.dragMgr) {
+                                cubism2.dragMgr.lastTimeSec = 0;
+                            }
+                            if (typeof cubism2.lookFront === "function") {
+                                cubism2.lookFront();
+                            }
+                            const model = cubism2.live2DMgr?.getModel();
+                            if (model) {
+                                if (model.mainMotionManager) {
+                                    model.mainMotionManager.currentPriority = 0;
+                                    model.mainMotionManager.reservePriority = 0;
+                                }
+                                if (model.mainMotionManager?.isFinished()) {
+                                    try { model.startRandomMotion("idle", 1); } catch(e){}
+                                }
+                            }
+                        }
+                    } catch(err) {
+                        console.warn("[XBHH V2] Reset error on page resume:", err);
+                    }
                     this.throttleRenderLoop();
                     console.log("[XBHH] V2 render resumed (page visible)");
                 }
             };
             document.addEventListener("visibilitychange", this._onVisibilityChange);
 
+            // 监听 WebGL 上下文丢失与恢复事件，防止显卡休眠/重置后动画永久卡死
             setTimeout(() => {
+                const canvas = document.getElementById("live2d");
+                if (canvas) {
+                    this._onContextLost = (e) => {
+                        e.preventDefault();
+                        console.warn("[XBHH V2] WebGL Context Lost!");
+                        this.pauseRenderLoop();
+                    };
+                    this._onContextRestored = () => {
+                        console.log("[XBHH V2] WebGL Context Restored! Re-initializing...");
+                        if (window.xbhhModelInstance) {
+                            window.xbhhModelInstance.loadModel();
+                        }
+                        this.throttleRenderLoop();
+                    };
+                    canvas.addEventListener("webglcontextlost", this._onContextLost, false);
+                    canvas.addEventListener("webglcontextrestored", this._onContextRestored, false);
+                }
                 this.initSphere();
                 this.initContextMenu();
                 this.initInteractiveTips();
@@ -584,11 +645,14 @@ export class Live2DV2Pet {
 
 
   /**
-   * 劫持 Cubism2 的 requestAnimationFrame 渲染循环，限制到 15fps
+   * 劫持 Cubism2 的 requestAnimationFrame 渲染循环，限制到 30fps/targetFPS
    */
   throttleRenderLoop() {
-      // 如果已有节流循环在运行，不要重复创建
-      if (this._throttledDrawId) return;
+      // 重新恢复渲染循环前，始终先清理现存的动画句柄，防止挂起卡死
+      if (this._throttledDrawId) {
+          window.cancelAnimationFrame(this._throttledDrawId);
+          this._throttledDrawId = null;
+      }
 
       const checkAndThrottle = () => {
           if (window.xbhhModelInstance && window.xbhhModelInstance.cubism2model) {
@@ -600,6 +664,14 @@ export class Live2DV2Pet {
               }
               cubism2.isDrawStart = false;
 
+              // 重置拖拽物体的计时器与 WebGL Viewport，防止切回页面时逻辑与绘制错乱
+              if (cubism2.dragMgr) {
+                  cubism2.dragMgr.lastTimeSec = 0;
+              }
+              if (cubism2.gl && !cubism2.gl.isContextLost() && typeof cubism2.gl.viewport === 'function') {
+                  cubism2.gl.viewport(0, 0, cubism2.canvas.width, cubism2.canvas.height);
+              }
+
               // 用节流循环替代（从 config 读取帧率，默认 30fps）
               const targetFPS = this.config.targetFPS || 30;
               const frameInterval = 1000 / targetFPS;
@@ -608,12 +680,19 @@ export class Live2DV2Pet {
               const throttledDraw = (timestamp) => {
                   this._throttledDrawId = window.requestAnimationFrame(throttledDraw);
                   const elapsed = timestamp - lastFrameTime;
+                  // 防止后台切回时由于巨大的 elapsed 导致状态卡死
+                  if (elapsed > 1000) {
+                      lastFrameTime = timestamp;
+                      return;
+                  }
                   if (elapsed >= frameInterval) {
                       lastFrameTime = timestamp - (elapsed % frameInterval);
                       try {
-                          cubism2.draw();
+                          if (cubism2.gl && !cubism2.gl.isContextLost() && typeof cubism2.gl.createProgram === 'function') {
+                              cubism2.draw();
+                          }
                       } catch(e) {
-                          // 忽略渲染错误
+                          // 忽略单帧渲染异常，保证渲染循环持续运行
                       }
                   }
               };
@@ -621,11 +700,10 @@ export class Live2DV2Pet {
               console.log(`[XBHH] Cubism2 render loop throttled to ${targetFPS}fps`);
           } else {
               // 引擎尚未就绪，稍后重试
-              setTimeout(checkAndThrottle, 500);
+              setTimeout(checkAndThrottle, 300);
           }
       };
-      // 给 initWidget 一些初始化时间
-      setTimeout(checkAndThrottle, 2000);
+      checkAndThrottle();
   }
 
   /**

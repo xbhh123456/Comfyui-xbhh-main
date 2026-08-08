@@ -166,10 +166,22 @@ class XBHHMultiLoraLoaderPlus:
                 enabled_str = "1"
                 preset_lines.append(f"{enabled_str}|{lora_name}|{strength_model}|{strength_clip if strength_clip else strength_model}|{trigger}|{trigger_weight}")
                 
-                # 收集启用的触发词
+                # 收集启用的触发词（智能识别：未指定triggerWeight时自动同步LoRA强度，1.00去括号，多Tag去整体括号包围）
                 if is_on and trigger:
-                    formatted_trigger = f"({trigger}:{trigger_weight:.2f})"
-                    trigger_words.append(formatted_trigger)
+                    trigger_clean = trigger.strip()
+                    if trigger_clean:
+                        # 如果没有显式自定义 trigger_weight（即为默认1.0），则自动同步 LoRA 模型强度 strength_model
+                        effective_weight = trigger_weight if abs(trigger_weight - 1.0) > 0.001 else strength_model
+                        
+                        is_default_weight = abs(effective_weight - 1.0) < 0.001
+                        is_multi_tag = ',' in trigger_clean or '\n' in trigger_clean
+                        already_weighted = (trigger_clean.startswith('(') and trigger_clean.endswith(')')) or (':' in trigger_clean and trigger_clean.endswith(')'))
+                        
+                        if is_default_weight or is_multi_tag or already_weighted:
+                            trigger_words.append(trigger_clean)
+                        else:
+                            formatted_trigger = f"({trigger_clean}:{effective_weight:.2f})"
+                            trigger_words.append(formatted_trigger)
                 
                 if clip is None:
                     strength_clip = 0

@@ -452,6 +452,8 @@ export class Live2DPet {
           "[XBHH] Path might be incorrect or server not serving the live2d folder. Check if 'live2d' is inside the root directory.",
         );
       }
+      // 模型加载失败时自动销毁并清理容器，避免保留空白外框
+      this.destroy();
     }
   }
 

@@ -2,18 +2,58 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <title>LoRA 数据管理器</title>
+    <title>xbhh • LoRA 模型全景控制台</title>
+    <!-- Google Fonts Outfit & PingFang -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=PingFang+SC:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
       :root {
-        --bg-base: #121212;
-        --bg-panel: #1e1e1e;
-        --bg-hover: #2d2d2d;
-        --primary: #4caf50;
-        --primary-hover: #45a049;
-        --text-main: #e0e0e0;
-        --text-muted: #888888;
-        --border: #333333;
-        --accent-blue: #2196f3;
+        --bg-base: #100c19;
+        --bg-panel: rgba(24, 18, 38, 0.45);
+        --bg-card: rgba(36, 26, 56, 0.42);
+        --bg-hover: rgba(62, 48, 88, 0.5);
+        --primary: #f3a6e9;
+        --primary-accent: #e2b4d8;
+        --primary-gradient: linear-gradient(135deg, #f3a6e9 0%, #c462c9 50%, #87389f 100%);
+        --pill-active-bg: linear-gradient(135deg, rgba(243, 166, 233, 0.35), rgba(162, 82, 180, 0.45));
+        --text-main: #f5e8f8;
+        --text-muted: #bcacc7;
+        --border: rgba(235, 140, 215, 0.22);
+        --border-hover: rgba(243, 166, 233, 0.55);
+        --accent-blue: #9cd2f8;
+        --radius-lg: 16px;
+        --radius-md: 12px;
+        --radius-sm: 8px;
+      }
+
+      /* 自定义二次元发光光标 (Melodify Style Cursor) */
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="4" fill="%23f3a6e9" opacity="0.95"/><circle cx="10" cy="10" r="8" fill="none" stroke="%23f3a6e9" stroke-width="1.5" opacity="0.4"/></svg>') 10 10, auto;
+      }
+
+      button, a, select, input, .folder-item, .lora-card, .menu-item {
+        cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5" fill="%23e2b4d8" opacity="1"/><circle cx="10" cy="10" r="9" fill="none" stroke="%23e2b4d8" stroke-width="2" opacity="0.6"/></svg>') 10 10, pointer !important;
+      }
+
+      /* 光标跟随环 */
+      #cursor-follower {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 26px;
+        height: 26px;
+        border: 1.5px solid rgba(243, 166, 233, 0.6);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 99999;
+        transform: translate(-50%, -50%);
+        transition: transform 0.08s ease-out, width 0.2s, height 0.2s, border-color 0.2s;
+        box-shadow: 0 0 10px rgba(243, 166, 233, 0.3);
       }
 
       body,
@@ -22,81 +62,161 @@
         padding: 0;
         width: 100%;
         height: 100%;
-        font-family:
-          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          "Helvetica Neue", Arial, sans-serif;
+        font-family: "Outfit", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         background-color: var(--bg-base);
         color: var(--text-main);
         display: flex;
+        flex-direction: column;
         overflow: hidden;
       }
 
       /* 滚动条美化 */
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
-        background: var(--bg-base);
+        background: rgba(20, 16, 30, 0.5);
       }
       ::-webkit-scrollbar-thumb {
-        background: #555;
-        border-radius: 4px;
+        background: rgba(226, 180, 216, 0.25);
+        border-radius: 6px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #777;
+        background: rgba(243, 166, 233, 0.5);
+      }
+
+      /* 1. 顶栏横向铺满 (Full-width Topbar from Demo) */
+      #topbar {
+        width: 100%;
+        height: 60px;
+        background: rgba(22, 16, 34, 0.65);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 20px;
+        z-index: 100;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        flex-shrink: 0;
+      }
+
+      .brand-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        user-select: none;
+      }
+
+      .brand-title {
+        font-size: 17px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #fff 0%, #f3a6e9 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: 0.5px;
+      }
+
+      .brand-tag {
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        background: rgba(243, 166, 233, 0.15);
+        border: 1px solid rgba(243, 166, 233, 0.3);
+        color: var(--primary);
+        font-weight: 600;
+      }
+
+      /* 顶栏集成的搜索与操作按钮 */
+      .topbar-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: nowrap;
+      }
+
+      /* 2. 下面部分拆成左右 (Left Directory Tree & Right LoRA View) */
+      #app-body {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+        position: relative;
+        padding: 12px;
+        gap: 12px;
       }
 
       /* 左侧面板 */
       #sidebar {
-        width: 300px;
+        width: 280px;
         min-width: 200px;
-        max-width: 500px;
+        max-width: 450px;
         background: var(--bg-panel);
-        border-right: 1px solid var(--border);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
         display: flex;
         flex-direction: column;
-        resize: horizontal;
-        overflow: auto;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      }
+      #sidebar > div:first-child {
+        padding: 14px 16px !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        border-bottom: 1px solid var(--border) !important;
+        background: rgba(42, 32, 60, 0.5) !important;
+        color: var(--primary) !important;
       }
       #folder-tree {
         flex: 1;
         padding: 10px;
         overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
       }
       .folder-item {
-        padding: 8px 10px;
+        padding: 8px 12px;
         cursor: pointer;
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         display: flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 2px;
+        font-size: 13px;
+        color: var(--text-muted);
+        transition: all 0.2s ease;
         user-select: none;
+        border: 1px solid transparent;
       }
       .folder-item:hover {
         background: var(--bg-hover);
+        color: #fff;
+        transform: translateX(2px);
       }
       .folder-item.active {
-        background: rgba(76, 175, 80, 0.2);
+        background: var(--pill-active-bg);
+        border: 1px solid var(--border-hover);
         border-left: 3px solid var(--primary);
+        color: #fff;
+        font-weight: 600;
       }
       .folder-icon {
-        color: #fbc02d;
-        font-size: 18px;
+        color: var(--primary);
+        font-size: 16px;
       }
 
       /* 文件夹简介 */
       #folder-desc {
         height: 30%;
-        min-height: 150px;
+        min-height: 140px;
         border-top: 1px solid var(--border);
-        padding: 15px;
+        padding: 12px 14px;
         overflow-y: auto;
-        background: rgba(0, 0, 0, 0.2);
-        font-size: 13px;
+        background: rgba(22, 17, 34, 0.6);
+        font-size: 12px;
         line-height: 1.5;
-        color: #aaa;
+        color: var(--text-muted);
       }
 
       /* 右侧面板 */
@@ -106,6 +226,8 @@
         flex-direction: column;
         overflow: hidden;
         position: relative;
+        background: var(--bg-panel);
+        backdrop-filter: blur(16px);
       }
 
       /* 工具栏 */
@@ -113,66 +235,103 @@
         height: 60px;
         padding: 0 20px;
         border-bottom: 1px solid var(--border);
-        background: var(--bg-panel);
+        background: rgba(22, 16, 34, 0.75);
+        backdrop-filter: blur(16px);
         display: flex;
         align-items: center;
         justify-content: space-between;
+        position: relative;
       }
       .search-box {
-        padding: 8px 12px;
-        border-radius: 6px;
+        padding: 7px 14px;
+        border-radius: 20px;
         border: 1px solid var(--border);
-        background: var(--bg-base);
+        background: rgba(18, 14, 28, 0.8);
         color: var(--text-main);
-        width: 280px;
+        width: 240px;
         outline: none;
+        font-size: 12px;
+        transition: all 0.25s ease;
       }
       .search-box:focus {
         border-color: var(--primary);
+        box-shadow: 0 0 12px rgba(243, 166, 233, 0.3);
       }
 
       .view-toggles {
         display: flex;
         gap: 10px;
+        align-items: center;
       }
       .btn {
-        background: var(--bg-base);
+        background: rgba(45, 34, 66, 0.7);
         border: 1px solid var(--border);
         color: var(--text-main);
-        padding: 6px 12px;
-        border-radius: 4px;
+        padding: 0 14px;
+        height: 34px;
+        border-radius: 20px;
         cursor: pointer;
-        display: flex;
+        display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 6px;
-        font-size: 13px;
-        transition: all 0.2s ease;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.25s ease;
+        user-select: none;
+        white-space: nowrap;
+      }
+      .btn:hover:not(.active):not(.btn-off) {
+        background: var(--bg-hover);
+        border-color: var(--primary);
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(243, 166, 233, 0.2);
       }
       .btn.active {
-        background: var(--primary);
+        background: var(--primary-gradient);
         color: #fff;
-        border-color: var(--primary);
+        border-color: transparent;
+        font-weight: 600;
+        box-shadow: 0 4px 15px rgba(243, 166, 233, 0.35);
       }
-      .btn:hover:not(.active) {
-        background: var(--bg-hover);
+      .btn.btn-off {
+        background: rgba(255, 152, 0, 0.18);
+        color: #ffca28;
+        border-color: rgba(255, 152, 0, 0.4);
       }
 
-      /* 列选择器下拉窗 */
+      /* 列选择器下拉窗 Popover (定位在工具栏按钮下方) */
       #column-selector {
         position: absolute;
-        background: var(--bg-panel);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        padding: 10px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-        z-index: 100;
-        display: none;
         right: 20px;
-        top: 50px;
+        top: 54px;
+        background: rgba(30, 23, 44, 0.98);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--primary);
+        border-radius: var(--radius-md);
+        padding: 12px 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--text-main);
       }
       #column-selector label {
-        display: block;
-        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        user-select: none;
+        margin-bottom: 0;
+      }
+      #column-selector label:hover {
+        color: var(--primary);
+      }
+      #column-selector input[type="checkbox"] {
+        accent-color: var(--primary);
         cursor: pointer;
       }
 
@@ -180,35 +339,49 @@
       #content-area {
         flex: 1;
         overflow: auto;
-        padding: 0 20px 70px 20px; /* Removed top padding to fix gap */
+        padding: 0 20px 70px 20px;
         position: relative;
       }
       #loading {
-        padding-top: 20px;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: block;
+        color: var(--primary);
+        font-size: 14px;
+        font-weight: 500;
+        z-index: 10;
       }
 
       /* --- 列表视图 --- */
       #list-view {
         display: none;
         width: 100%;
-        border-collapse: collapse;
-        table-layout: auto;
+        border-collapse: separate;
+        border-spacing: 0;
       }
       #list-view th,
       #list-view td {
         text-align: left;
-        padding: 10px;
+        padding: 10px 12px;
         border-bottom: 1px solid var(--border);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        max-width: 260px;
+        font-size: 12px;
       }
       #list-view th {
         position: sticky;
         top: 0;
-        background: var(--bg-panel);
-        z-index: 10;
-        font-weight: 500;
+        background: #1b132a;
+        backdrop-filter: blur(16px);
+        z-index: 100;
+        font-weight: 600;
+        color: var(--primary);
+        border-bottom: 1.5px solid var(--border);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
       }
       .th-resizer {
         display: flex;
@@ -234,77 +407,61 @@
       }
       #list-view tbody tr {
         cursor: pointer;
+        transition: background 0.2s;
       }
       #list-view tbody tr:hover {
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(243, 166, 233, 0.08);
       }
       #list-view tbody tr.has-user-trigger {
-        background: rgba(33, 150, 243, 0.1);
-      }
-      #list-view tbody tr.has-user-trigger:hover {
-        background: rgba(33, 150, 243, 0.16);
+        background: rgba(243, 166, 233, 0.12);
       }
       #list-view tbody tr.selected {
-        background: rgba(76, 175, 80, 0.12);
-      }
-      #list-view tbody tr.selected.has-user-trigger {
-        background: rgba(56, 142, 120, 0.18);
-        box-shadow: inset 3px 0 0 var(--accent-blue);
+        background: rgba(243, 166, 233, 0.22);
       }
 
       /* --- 图标视图 --- */
       #icon-view {
-        padding-top: 20px;
+        padding-top: 10px;
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 15px;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 14px;
         display: none;
       }
       .lora-card {
-        background: var(--bg-panel);
+        background: var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: var(--radius-md);
         overflow: hidden;
         cursor: pointer;
-        transition:
-          transform 0.2s,
-          box-shadow 0.2s,
-          border-color 0.2s;
+        transition: all 0.25s ease;
         position: relative;
-        min-width: 0;
+        display: flex;
+        flex-direction: column;
       }
       .lora-card:hover {
         transform: translateY(-3px);
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
-        border-color: #555;
+        box-shadow: 0 10px 25px rgba(243, 166, 233, 0.2);
+        border-color: var(--primary);
       }
       .lora-card.selected {
         border-color: var(--primary);
-        box-shadow: 0 0 10px rgba(76, 175, 80, 0.4);
+        box-shadow: 0 0 14px rgba(243, 166, 233, 0.35);
       }
       .lora-card.has-user-trigger {
-        background: rgba(33, 150, 243, 0.14);
-        border-color: rgba(33, 150, 243, 0.5);
-      }
-      .lora-card.has-user-trigger:hover {
-        border-color: rgba(33, 150, 243, 0.75);
-        box-shadow: 0 5px 15px rgba(33, 150, 243, 0.25);
-      }
-      .lora-card.has-user-trigger.selected {
-        background: rgba(56, 142, 120, 0.2);
-        border-color: var(--primary);
-        box-shadow: 0 0 10px rgba(76, 175, 80, 0.35);
+        background: rgba(46, 34, 66, 0.85);
+        border-color: rgba(243, 166, 233, 0.45);
       }
       .user-trigger-badge {
         position: absolute;
-        top: 8px;
-        right: 8px;
+        top: 6px;
+        right: 6px;
         z-index: 4;
         font-size: 10px;
-        padding: 2px 6px;
+        padding: 2px 7px;
         border-radius: 10px;
-        background: rgba(33, 150, 243, 0.85);
+        background: var(--primary-gradient);
         color: #fff;
+        font-weight: bold;
         pointer-events: none;
       }
       .legend-bar {
@@ -312,7 +469,7 @@
         gap: 16px;
         font-size: 12px;
         color: var(--text-muted);
-        padding: 0 20px 8px;
+        padding: 12px 20px 4px 20px;
       }
       .legend-item {
         display: flex;
@@ -320,20 +477,17 @@
         gap: 6px;
       }
       .legend-swatch {
-        width: 14px;
-        height: 14px;
-        border-radius: 3px;
-        border: 1px solid var(--border);
-      }
-      .legend-swatch.user-trigger {
-        background: rgba(33, 150, 243, 0.35);
-        border-color: rgba(33, 150, 243, 0.6);
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--primary);
+        box-shadow: 0 0 8px var(--primary);
       }
       .lora-img {
         width: 100%;
         aspect-ratio: 1;
         object-fit: cover;
-        background: #000;
+        background: rgba(15, 12, 22, 0.8);
         display: block;
       }
       .lora-img-placeholder {
@@ -342,27 +496,29 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #2a2a2a;
-        color: #555;
-        font-size: 40px;
+        background: rgba(25, 19, 36, 0.8);
+        color: rgba(243, 166, 233, 0.3);
+        font-size: 38px;
       }
       .lora-name {
-        padding: 10px;
-        font-size: 13px;
+        padding: 8px 10px;
+        font-size: 12px;
+        font-weight: 500;
         text-align: center;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        color: var(--text-main);
       }
 
       /* Checkboxes */
       .card-checkbox {
         position: absolute;
-        top: 8px;
-        left: 8px;
+        top: 6px;
+        left: 6px;
         z-index: 5;
-        width: 18px;
-        height: 18px;
+        width: 16px;
+        height: 16px;
         cursor: pointer;
         accent-color: var(--primary);
       }
@@ -370,18 +526,19 @@
       /* Batch Actions Toolbar */
       #batch-toolbar {
         position: absolute;
-        bottom: -60px;
+        bottom: -70px;
         left: 0;
         right: 0;
         height: 55px;
-        background: #1b2e24;
+        background: rgba(30, 22, 44, 0.95);
+        backdrop-filter: blur(16px);
         border-top: 1px solid var(--primary);
         display: flex;
         align-items: center;
         justify-content: space-between;
         padding: 0 20px;
-        box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.5);
-        transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.6);
+        transition: bottom 0.3s ease;
         z-index: 90;
       }
       #batch-toolbar.show {
@@ -391,121 +548,73 @@
         display: flex;
         gap: 10px;
       }
-      .btn-batch-action {
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-      }
-      .btn-batch-action:hover {
-        background: var(--primary);
-        border-color: var(--primary);
-        color: #fff;
-      }
-
-      /* 悬浮摘要卡片 */
-      #hover-summary {
-        position: absolute;
-        width: 280px;
-        background: rgba(30, 30, 30, 0.95);
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--primary);
-        border-radius: 8px;
-        padding: 15px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-        z-index: 1000;
-        display: none;
-        pointer-events: none;
-        font-size: 12px;
-        color: #ccc;
-      }
-      #hover-summary h4 {
-        margin: 0 0 10px 0;
-        color: #fff;
-        font-size: 14px;
-        border-bottom: 1px solid #444;
-        padding-bottom: 5px;
-      }
-      .summary-row {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 4px;
-      }
-      .summary-label {
-        color: #888;
-      }
-      .summary-value {
-        color: #4caf50;
-        font-weight: bold;
-      }
 
       /* 右键菜单 */
       #context-menu {
         position: absolute;
-        background: #2a2a2a;
-        border: 1px solid #444;
-        border-radius: 6px;
-        padding: 5px 0;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+        background: rgba(32, 24, 46, 0.95);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--primary);
+        border-radius: var(--radius-md);
+        padding: 4px 0;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
         z-index: 9999;
         display: none;
       }
       .menu-item {
-        padding: 8px 15px;
+        padding: 7px 16px;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 12px;
+        color: var(--text-main);
       }
       .menu-item:hover {
-        background: var(--primary);
+        background: var(--primary-gradient);
         color: #fff;
       }
 
       /* 模态弹窗 (详情参数) */
       #detail-modal {
         position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        backdrop-filter: blur(5px);
-        z-index: 10000;
+        inset: 0;
+        background: rgba(14, 10, 22, 0.82);
+        backdrop-filter: blur(12px);
+        z-index: 2000;
         display: none;
         align-items: center;
         justify-content: center;
       }
       .modal-content {
-        background: var(--bg-panel);
-        width: 85%;
-        max-width: 1100px;
-        height: 85%;
-        border-radius: 12px;
-        border: 1px solid var(--border);
+        background: rgba(30, 23, 44, 0.96);
+        border: 1px solid var(--primary);
+        width: 84%;
+        max-width: 1000px;
+        height: 82%;
+        border-radius: var(--radius-lg);
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
       }
       .modal-header {
-        padding: 15px 20px;
-        background: #222;
+        padding: 14px 20px;
+        background: rgba(42, 32, 60, 0.8);
         border-bottom: 1px solid var(--border);
         display: flex;
         justify-content: space-between;
         align-items: center;
       }
       .modal-title {
-        font-size: 18px;
-        font-weight: bold;
-        margin: 0;
-        color: #fff;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--primary);
       }
       .close-btn {
         cursor: pointer;
-        color: #888;
-        font-size: 24px;
-        line-height: 1;
+        color: var(--text-muted);
+        font-size: 22px;
       }
       .close-btn:hover {
-        color: #ff5252;
+        color: var(--primary);
       }
 
       .modal-body {
@@ -513,28 +622,27 @@
         padding: 20px;
         overflow-y: auto;
         display: flex;
-        gap: 20px;
+        gap: 18px;
       }
       .param-section {
-        background: var(--bg-base);
-        padding: 15px;
-        border-radius: 8px;
+        background: rgba(22, 17, 33, 0.6);
+        padding: 14px;
+        border-radius: var(--radius-md);
         border: 1px solid var(--border);
-        margin-bottom: 20px;
+        margin-bottom: 14px;
       }
       .param-section h3 {
         margin-top: 0;
-        font-size: 15px;
+        font-size: 13px;
         color: var(--primary);
-        border-bottom: 1px solid #333;
-        padding-bottom: 8px;
-        margin-bottom: 12px;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 6px;
       }
 
       .grid-2 {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
+        gap: 8px;
       }
       .param-item {
         display: flex;
@@ -543,41 +651,42 @@
       }
       .param-key {
         font-size: 11px;
-        color: #888;
-        text-transform: uppercase;
+        color: var(--text-muted);
       }
       .param-val {
-        font-size: 13px;
-        color: #ddd;
-        background: #222;
+        font-size: 12px;
+        color: var(--text-main);
+        background: rgba(16, 12, 24, 0.6);
         padding: 4px 8px;
         border-radius: 4px;
         word-break: break-all;
       }
 
-      /* Trigger Editor Section */
+      /* Trigger Editor Section & Pill Badges */
       .trigger-editor-section {
-        background: #1b2620;
-        border-color: #273b30;
+        background: rgba(36, 26, 56, 0.55);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
       }
       .trigger-input-wrapper {
         display: flex;
         flex-direction: column;
         gap: 6px;
         margin-bottom: 12px;
+        width: 100%;
+        box-sizing: border-box;
       }
       .trigger-textarea {
-        background: #121212;
+        background: rgba(16, 12, 24, 0.8);
         border: 1px solid var(--border);
         color: #fff;
-        padding: 10px;
-        border-radius: 6px;
+        padding: 8px 12px;
+        border-radius: 8px;
         resize: vertical;
-        font-family: inherit;
-        font-size: 13px;
-        min-height: 55px;
+        font-size: 12px;
         outline: none;
-        line-height: 1.4;
+        width: 100%;
+        box-sizing: border-box;
       }
       .trigger-textarea:focus {
         border-color: var(--primary);
@@ -585,23 +694,24 @@
       .editor-actions {
         display: flex;
         gap: 10px;
+        margin-top: 8px;
       }
       .pill-group {
         margin-top: 12px;
       }
       .pill-group-title {
         font-size: 11px;
-        color: #888;
+        color: var(--text-muted);
         margin-bottom: 6px;
       }
       .clickable-pill {
         display: inline-block;
-        background: #233129;
-        border: 1px solid #314d3f;
-        padding: 4px 8px;
-        border-radius: 12px;
+        background: rgba(54, 38, 76, 0.65);
+        border: 1px solid var(--border);
+        padding: 4px 11px;
+        border-radius: 14px;
         font-size: 11px;
-        color: #aeeaae;
+        color: var(--primary);
         cursor: pointer;
         margin-right: 6px;
         margin-bottom: 6px;
@@ -609,88 +719,144 @@
         user-select: none;
       }
       .clickable-pill:hover {
-        background: #314d3f;
+        background: var(--primary-gradient);
         color: #fff;
+        border-color: transparent;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(243, 166, 233, 0.35);
       }
       .clickable-pill.civit {
-        background: #1e2a3b;
-        border-color: #2a3f5a;
-        color: #9cd2f8;
+        background: rgba(30, 45, 75, 0.65);
+        border-color: rgba(156, 210, 248, 0.35);
+        color: var(--accent-blue);
       }
       .clickable-pill.civit:hover {
-        background: #2a3f5a;
+        background: linear-gradient(135deg, #9cd2f8 0%, #4a90e2 100%);
         color: #fff;
+        border-color: transparent;
+        box-shadow: 0 4px 12px rgba(156, 210, 248, 0.35);
       }
-
       .tag-freq-box {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
+        max-height: 180px;
+        overflow-y: auto;
+        padding-top: 4px;
       }
       .tag-pill {
-        background: #2a3a2a;
-        border: 1px solid #3a5a3a;
-        padding: 3px 8px;
-        border-radius: 12px;
-        font-size: 12px;
-        color: #aeeaae;
+        display: inline-flex;
+        align-items: center;
+        background: rgba(46, 32, 66, 0.6);
+        border: 1px solid var(--border);
+        padding: 3px 10px;
+        border-radius: 14px;
+        font-size: 11px;
+        color: var(--text-main);
       }
       .tag-count {
-        color: #fff;
-        background: rgba(0, 0, 0, 0.3);
-        padding: 1px 5px;
+        color: var(--primary);
+        background: rgba(16, 12, 24, 0.6);
+        padding: 1px 6px;
         border-radius: 8px;
-        margin-left: 5px;
+        margin-left: 6px;
         font-size: 10px;
+        font-weight: 600;
       }
 
-      /* 居中加载提示 */
-      #loading {
+      /* Melodify Style Back To Top Button */
+      #back-to-top {
+        position: fixed;
+        right: 28px;
+        bottom: 28px;
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: rgba(26, 18, 42, 0.88);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(243, 166, 233, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 999;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(16px) scale(0.9);
+        transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                    border-color 0.25s ease,
+                    box-shadow 0.25s ease;
+      }
+      #back-to-top.show {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+      #back-to-top:hover {
+        border-color: var(--primary);
+        transform: translateY(-3px) scale(1.05);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(243, 166, 233, 0.5);
+      }
+      #back-to-top:active {
+        transform: translateY(0) scale(0.95);
+      }
+      .progress-ring {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        display: block;
-        color: #888;
-        font-size: 16px;
-        z-index: 10;
+        inset: 0;
+        transform: rotate(-90deg);
+        pointer-events: none;
+      }
+      .progress-ring__circle {
+        transition: stroke-dashoffset 0.1s linear;
+      }
+      .back-to-top-icon {
+        font-size: 13px;
+        color: var(--primary);
+        transition: transform 0.25s ease, color 0.25s ease;
+        user-select: none;
+      }
+      #back-to-top:hover .back-to-top-icon {
+        color: #fff;
+        transform: translateY(-2px);
       }
 
-      /* 批量操作进度条 */
+      /* 批量操作进度条 Modal Overlay */
       #batch-progress-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0, 0, 0, 0.72);
-        backdrop-filter: blur(4px);
-        z-index: 20000;
+        background: rgba(14, 10, 22, 0.85);
+        backdrop-filter: blur(8px);
+        z-index: 2000;
         display: none;
         align-items: center;
         justify-content: center;
       }
       .batch-progress-panel {
         width: min(480px, 90vw);
-        background: var(--bg-panel);
+        background: rgba(30, 23, 44, 0.98);
         border: 1px solid var(--primary);
-        border-radius: 10px;
+        border-radius: var(--radius-lg);
         padding: 24px;
-        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
       }
       .batch-progress-title {
         font-size: 16px;
         font-weight: bold;
         margin-bottom: 8px;
-        color: #fff;
+        color: var(--primary);
       }
       .batch-progress-status {
         font-size: 13px;
-        color: #aaa;
+        color: var(--text-muted);
         margin-bottom: 14px;
         min-height: 20px;
         word-break: break-all;
       }
       .batch-progress-bar-wrap {
         height: 8px;
-        background: #333;
+        background: rgba(16, 12, 24, 0.8);
         border-radius: 4px;
         overflow: hidden;
         margin-bottom: 10px;
@@ -698,14 +864,14 @@
       .batch-progress-bar {
         height: 100%;
         width: 0%;
-        background: linear-gradient(90deg, #2d5a3d, var(--primary));
+        background: var(--primary-gradient);
         transition: width 0.2s ease;
       }
       .batch-progress-meta {
         display: flex;
         justify-content: space-between;
         font-size: 12px;
-        color: #888;
+        color: var(--text-muted);
       }
       .toolbar-select-actions {
         display: flex;
@@ -713,126 +879,126 @@
         align-items: center;
       }
       .btn-select {
-        padding: 6px 10px;
+        padding: 0 12px;
         font-size: 12px;
+        height: 34px;
       }
     </style>
   </head>
   <body>
-    <!-- 左侧面板 -->
-    <div id="sidebar">
-      <div
-        style="
-          padding: 15px;
-          font-weight: bold;
-          border-bottom: 1px solid #333;
-          background: #222;
-        "
-      >
-        📂 LoRA 文件夹
-      </div>
-      <div id="folder-tree">
-        <!-- 文件夹列表将动态加载 -->
-      </div>
-      <div id="folder-desc">
-        <h4 style="margin: 0 0 10px 0; color: #fff">文件夹简介</h4>
-        <div id="folder-desc-content">请选择一个文件夹...</div>
-      </div>
-    </div>
-
-    <!-- 右侧面板 -->
-    <div id="main-content">
-      <!-- 工具栏 -->
-      <div id="toolbar">
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <button class="btn" id="btn-toggle-sidebar" title="折叠/展开左侧面板" style="padding: 6px; width: 32px; justify-content: center; font-size: 16px;">≡</button>
-          <input
-            type="text"
-            id="search-input"
-            class="search-box"
-            placeholder="🔍 输入名称或触发词搜索..."
-          />
+    <!-- 1. 顶栏横向位置铺满 (Full-width Topbar from Demo) -->
+    <header id="topbar">
+      <!-- 顶栏左侧：品牌标识 + 隐藏目录图标按钮 + 搜索框 -->
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div class="brand-box">
+          <span class="brand-title">xbhh • LoRA Manager</span>
+          <span class="brand-tag">v2.0</span>
         </div>
 
-        <div class="view-toggles">
-          <div class="toolbar-select-actions" id="select-actions">
-            <button class="btn btn-select" id="btn-recalc-triggers" title="按训练标签最高频次重新计算自动触发词">🔄 重算高频词</button>
+        <!-- 隐藏目录按钮仅保留图标 ≡ (初始展开状态默认常亮) -->
+        <button class="btn active" id="btn-toggle-sidebar" title="折叠/展开左侧面板"
+          style="padding: 6px; width: 34px; height: 34px; justify-content: center; font-size: 16px; font-weight: bold;">≡</button>
+
+        <!-- 搜索框紧跟在左侧 -->
+        <input type="text" id="search-input" class="search-box" placeholder="🔍 输入名称或触发词搜索..." />
+      </div>
+
+      <!-- 顶栏右侧：规则过滤与工具按钮 -->
+      <div class="topbar-controls">
+        <select id="filter-rule-select" class="search-box"
+          style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;" title="按规则过滤 LoRA 视图">
+          <option value="all">🌐 全部 LoRA</option>
+          <option value="hide_custom">🙈 过滤已自定义</option>
+          <option value="only_custom">🎯 仅看已自定义</option>
+          <option value="no_trigger">⚠️ 无触发词</option>
+        </select>
+
+        <div class="toolbar-select-actions" id="select-actions" style="display: flex; gap: 6px;">
+          <button class="btn btn-select" id="btn-toggle-auto-trigger" title="点击开启或关闭自动提示词功能">⚡ 自动提示词：开启</button>
+          <button class="btn btn-select" id="btn-recalc-triggers" title="按训练标签最高频次重新计算自动触发词">🔄 重算高频词</button>
           <button class="btn btn-select" id="btn-select-all">☑ 全选</button>
-            <button class="btn btn-select" id="btn-select-invert">⇄ 反选</button>
-            <button class="btn btn-select" id="btn-select-none">☐ 取消</button>
+          <button class="btn btn-select" id="btn-select-invert" style="display: none;">⇄ 反选</button>
+          <button class="btn btn-select" id="btn-select-none" style="display: none;">☐ 取消</button>
+        </div>
+
+        <button class="btn" id="btn-col-config" style="display: none">⚙️ 列配置</button>
+        <button class="btn" id="btn-toggle-view" title="点击切换列表/图标视图">🖼️ 图标视图</button>
+        <button class="btn" id="btn-open-settings" title="全局系统设置 (包含 Civitai API Key)">⚙️ 设置</button>
+      </div>
+
+      <!-- 列配置下拉窗 -->
+      <div id="column-selector">
+        <label><input type="checkbox" value="base_model" checked /> 基础模型</label>
+        <label><input type="checkbox" value="trigger_words" checked /> 提示词</label>
+        <label><input type="checkbox" value="type" checked /> 类型(Module)</label>
+        <label><input type="checkbox" value="dim" checked /> Rank(Dim)</label>
+        <label><input type="checkbox" value="lr" checked /> 学习率</label>
+        <label><input type="checkbox" value="epochs" checked /> Epochs</label>
+        <label><input type="checkbox" value="resolution" checked /> 分辨率</label>
+        <label><input type="checkbox" value="size" checked /> 文件大小</label>
+        <label><input type="checkbox" value="use_count" checked /> 使用频次</label>
+      </div>
+    </header>
+
+    <!-- 2. 下面部分拆成左右 (Left Directory Tree & Right LoRA View from Demo) -->
+    <div id="app-body">
+      <!-- 左边：目录 (Directory Tree) -->
+      <div id="sidebar">
+        <div class="sidebar-header">
+          <span>≡ 目录</span>
+        </div>
+        <div id="folder-tree">
+          <!-- 文件夹列表将动态加载 -->
+        </div>
+        <div id="folder-desc">
+          <h4 style="margin: 0 0 6px 0; color: var(--primary);">文件夹简介</h4>
+          <div id="folder-desc-content">请选择一个文件夹...</div>
+        </div>
+      </div>
+
+      <!-- 右边：显示 LoRA (LoRA Cards & Details View) -->
+      <div id="main-content">
+
+
+        <!-- 内容渲染区 -->
+        <div id="content-area">
+          <div id="loading">✨ 加载中，请稍候...</div>
+
+          <!-- 列表视图容器 -->
+          <table id="list-view">
+            <thead>
+              <tr id="list-header">
+                <th style="width: 40px;"><input type="checkbox" id="select-all-list" /></th>
+                <th>文件名</th>
+                <!-- 列动态生成 -->
+              </tr>
+            </thead>
+            <tbody id="list-body"></tbody>
+          </table>
+
+          <!-- 图标视图容器 -->
+          <div id="icon-view"></div>
+        </div>
+
+        <!-- Batch Actions Toolbar -->
+        <div id="batch-toolbar">
+          <div style="font-size: 13px; color: var(--primary); font-weight: 500;">
+            已选择 <span id="selected-count" style="font-weight: bold; font-size: 15px;">0</span> 个模型
           </div>
-          <button class="btn" id="btn-col-config" style="display: none">
-            ⚙️ 列配置
-          </button>
-          <button class="btn active" id="btn-view-icon">🖼️ 图标视图</button>
-          <button class="btn" id="btn-view-list">📋 列表视图</button>
-        </div>
-
-        <!-- 列配置下拉窗 -->
-        <div id="column-selector">
-          <label
-            ><input type="checkbox" value="base_model" checked />
-            基础模型</label
-          >
-          <label
-            ><input type="checkbox" value="trigger_words" checked /> 提示词</label
-          >
-          <label
-            ><input type="checkbox" value="type" checked /> 类型(Module)</label
-          >
-          <label><input type="checkbox" value="dim" checked /> Rank(Dim)</label>
-          <label><input type="checkbox" value="lr" checked /> 学习率</label>
-          <label><input type="checkbox" value="epochs" checked /> Epochs</label>
-          <label
-            ><input type="checkbox" value="resolution" checked /> 分辨率</label
-          >
-          <label><input type="checkbox" value="size" checked /> 文件大小</label>
-          <label><input type="checkbox" value="use_count" checked /> 使用频次</label>
-        </div>
-      </div>
-
-      <div class="legend-bar">
-        <div class="legend-item">
-          <span class="legend-swatch user-trigger"></span>
-          <span>已设置自定义触发词</span>
-        </div>
-      </div>
-
-      <!-- 内容渲染区 -->
-      <div id="content-area">
-        <div id="loading">加载中，请稍候...</div>
-
-        <!-- 列表视图容器 -->
-        <table id="list-view">
-          <thead>
-            <tr id="list-header">
-              <th style="width: 40px;"><input type="checkbox" id="select-all-list" /></th>
-              <th>文件名</th>
-              <!-- 列动态生成 -->
-            </tr>
-          </thead>
-          <tbody id="list-body"></tbody>
-        </table>
-
-        <!-- 图标视图容器 -->
-        <div id="icon-view"></div>
-      </div>
-
-      <!-- Batch Actions Toolbar -->
-      <div id="batch-toolbar">
-        <div style="font-size: 14px; color: #aeeaae;">
-          已选择 <span id="selected-count" style="font-weight: bold; font-size: 16px;">0</span> 个模型
-        </div>
-        <div class="batch-actions">
-          <button class="btn btn-batch-action" onclick="handleBatchAction('auto')">🪄 批量应用高频词</button>
-          <button class="btn btn-batch-action" onclick="handleBatchAction('civitai')">🌐 批量拉取Civitai</button>
-          <button class="btn btn-batch-action" onclick="handleBatchAction('reset')" style="background: rgba(255, 82, 82, 0.15); border-color: rgba(255, 82, 82, 0.3); color: #ff8a8a;">🗑️ 批量重置</button>
+          <div class="batch-actions">
+            <button class="btn btn-batch-action" onclick="handleBatchAction('auto')" title="将选中模型已算好的训练高频词套用为触发词">🪄 批量应用高频词</button>
+            <button class="btn btn-batch-action" onclick="handleBatchAction('civitai')" title="从 Civitai 批量拉取官方推荐触发词">🌐 批量拉取Civitai</button>
+            <button class="btn btn-batch-action" onclick="handleBatchAction('reset')" style="background: rgba(255, 82, 82, 0.15); border-color: rgba(255, 82, 82, 0.3); color: #ff8a8a;" title="清空选中模型的自定义触发词 (user_trigger 设为 NULL)，恢复为默认自动高频词">🗑️ 批量重置提示词</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 悬浮摘要 -->
-    <div id="hover-summary"></div>
+    <!-- 1.5秒大图放大与参数统一融合悬浮窗 -->
+    <div id="image-preview-popover" style="display:none; position:fixed; z-index:10005; pointer-events:none; background:rgba(22, 22, 30, 0.96); border:1px solid var(--primary); border-radius:12px; padding:12px; box-shadow:0 14px 40px rgba(0,0,0,0.85); backdrop-filter:blur(10px); transition:opacity 0.2s ease; width:340px; box-sizing:border-box; flex-direction:column; gap:10px;">
+      <img id="image-preview-img" style="width:100%; max-height:280px; object-fit:contain; border-radius:8px; background:#111; display:none;" />
+      <div id="image-preview-details" style="font-size:12px; color:#ccc;"></div>
+    </div>
 
     <!-- 右键菜单 -->
     <div id="context-menu">
@@ -847,7 +1013,7 @@
           <div class="close-btn" id="modal-close">&times;</div>
         </div>
         <div class="modal-body">
-          <!-- 左列：训练参数 -->
+          <!-- 左列：基本信息、训练参数、杂项 -->
           <div
             style="
               flex: 1.3;
@@ -857,90 +1023,124 @@
             "
           >
             <div class="param-section">
-              <h3>基本信息</h3>
-              <div class="grid-2">
-                <div class="param-item">
-                  <span class="param-key">基础模型</span
-                  ><span class="param-val" id="md-base"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">模型 Hash</span
-                  ><span class="param-val" id="md-hash"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">结构类型</span
-                  ><span class="param-val" id="md-module"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">Rank / Alpha</span
-                  ><span class="param-val" id="md-dim"></span>
-                </div>
-              </div>
-            </div>
-
-            <div class="param-section">
-              <h3>训练参数</h3>
-              <div class="grid-2">
-                <div class="param-item">
-                  <span class="param-key">Epochs</span
-                  ><span class="param-val" id="md-epoch"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">分辨率</span
-                  ><span class="param-val" id="md-res"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">学习率 (UNet)</span
-                  ><span class="param-val" id="md-lr"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">学习率 (TE)</span
-                  ><span class="param-val" id="md-te-lr"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">优化器</span
-                  ><span class="param-val" id="md-opt"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">调度器</span
-                  ><span class="param-val" id="md-sch"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">Batch Size</span
-                  ><span class="param-val" id="md-batch"></span>
-                </div>
-                <div class="param-item">
-                  <span class="param-key">Clip Skip</span
-                  ><span class="param-val" id="md-clip"></span>
+              <h3 id="sec-basic-header" style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                <span>基本信息</span>
+                <span id="sec-basic-icon" style="font-size: 11px; color: #8ab4f8;">▼</span>
+              </h3>
+              <div id="sec-basic-body" style="margin-top: 12px;">
+                <div class="grid-2">
+                  <div class="param-item">
+                    <span class="param-key">基础模型</span>
+                    <span class="param-val" id="md-base"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">模型 Hash</span>
+                    <span class="param-val" id="md-hash"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">模型大小</span>
+                    <span class="param-val" id="md-size"></span>
+                  </div>
+                  <div class="param-item" style="grid-column: span 2;">
+                    <span class="param-key">相对位置</span>
+                    <span class="param-val" id="md-rel-path" style="word-break: break-all;"></span>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div class="param-section">
-              <h3>杂项（JSON 原始记录）</h3>
-              <pre
-                id="md-raw"
-                style="
-                  font-size: 11px;
-                  color: #888;
-                  background: #1a1a1a;
-                  padding: 10px;
-                  border-radius: 4px;
-                  max-height: 200px;
-                  overflow: auto;
-                "
-              ></pre>
+              <h3 id="sec-train-header" style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                <span>训练参数</span>
+                <span id="sec-train-icon" style="font-size: 11px; color: #8ab4f8;">▼</span>
+              </h3>
+              <div id="sec-train-body" style="margin-top: 12px;">
+                <div class="grid-2">
+                  <div class="param-item">
+                    <span class="param-key">结构类型</span>
+                    <span class="param-val" id="md-module"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">Rank / Alpha</span>
+                    <span class="param-val" id="md-dim"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">Epochs</span>
+                    <span class="param-val" id="md-epoch"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">分辨率</span>
+                    <span class="param-val" id="md-res"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">学习率 (UNet)</span>
+                    <span class="param-val" id="md-lr"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">学习率 (TE)</span>
+                    <span class="param-val" id="md-te-lr"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">优化器</span>
+                    <span class="param-val" id="md-opt"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">调度器</span>
+                    <span class="param-val" id="md-sch"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">Batch Size</span>
+                    <span class="param-val" id="md-batch"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">Clip Skip</span>
+                    <span class="param-val" id="md-clip"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="param-section">
+              <h3 id="sec-misc-header" style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                <span>杂项（JSON 原始记录）</span>
+                <span id="sec-misc-icon" style="font-size: 11px; color: #8ab4f8;">▼</span>
+              </h3>
+              <div id="sec-misc-body" style="margin-top: 12px;">
+                <pre
+                  id="md-raw"
+                  style="
+                    font-size: 11px;
+                    color: #888;
+                    background: #1a1a1a;
+                    padding: 10px;
+                    border-radius: 4px;
+                    max-height: 200px;
+                    overflow: auto;
+                    margin: 0;
+                  "
+                ></pre>
+              </div>
             </div>
           </div>
 
-          <!-- 右列：标签频率 & 触发词编辑器 -->
-          <div style="flex: 1; display: flex; flex-direction: column; gap: 20px;">
-            <!-- 触发词编辑器 -->
+          <!-- 右列：标签频率 & 触发词编辑器与预设 -->
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+            <!-- 触发词编辑器与预设管理 -->
             <div class="param-section trigger-editor-section" style="display: flex; flex-direction: column; margin-bottom: 0;">
-              <h3>触发词编辑 (Triggers)</h3>
-              <div class="trigger-input-wrapper">
-                <span class="param-key">自定义触发词 (逗号/英文逗号分隔)</span>
-                <textarea id="modal-trigger-input" class="trigger-textarea" placeholder="输入自定义触发词..."></textarea>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <h3 style="margin: 0;">触发词编辑与预设 (Triggers & Presets)</h3>
+                <button class="btn" id="btn-add-preset-modal" style="padding: 3px 10px; font-size: 11px; height: 24px; background: rgba(45, 120, 245, 0.3); border-color: rgba(45, 120, 245, 0.6); color: #9cd2f8; font-weight: bold;">➕ 添加预设</button>
+              </div>
+
+              <!-- 动态预设卡片列表容器 (Collapsible Preset Cards) -->
+              <div id="preset-cards-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+                <!-- 预设卡片组由 JS 动态渲染 -->
+              </div>
+
+              <!-- 自定义触发词 (无任何预设时自动显示) -->
+              <div class="trigger-input-wrapper" id="single-trigger-wrapper" style="width: 100%; box-sizing: border-box;">
+                <span class="param-key">自定义触发词 (无预设时生效)</span>
+                <textarea id="modal-trigger-input" class="trigger-textarea" style="width: 100%; box-sizing: border-box;" placeholder="输入自定义触发词..."></textarea>
                 <div class="editor-actions">
                   <button class="btn" id="btn-save-trigger" style="background: var(--primary); border: none; font-weight: bold; flex: 1.2; justify-content: center; color: white;">保存触发词</button>
                   <button class="btn" id="btn-reset-trigger" style="flex: 1; justify-content: center;">清除自定义</button>
@@ -948,7 +1148,7 @@
               </div>
 
               <!-- TF-IDF Tags -->
-              <div class="pill-group" id="auto-trigger-group">
+              <div class="pill-group" id="auto-trigger-group" style="margin-top: 10px;">
                 <div class="pill-group-title">训练标签最高频词 - 点击添加</div>
                 <div id="auto-trigger-pills">
                   <!-- Pills will be generated dynamically -->
@@ -967,24 +1167,16 @@
               </div>
             </div>
 
-            <!-- 标签频次列表 -->
-            <div
-              class="param-section"
-              style="
-                flex: 1;
-                display: flex;
-                flex-direction: column;
-                margin-bottom: 0;
-                min-height: 180px;
-              "
-            >
-              <h3>标签使用频率 (Tag Frequency)</h3>
-              <div
-                id="md-tags"
-                class="tag-freq-box"
-                style="flex: 1; overflow-y: auto; align-content: flex-start"
-              >
-                <!-- 动态加载 -->
+            <!-- 可折叠：标签频次列表 -->
+            <div class="param-section" style="margin-bottom: 0;">
+              <h3 id="tag-freq-toggle-header" style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+                <span>▶ 标签使用频率 (Tag Frequency)</span>
+                <span id="tag-freq-toggle-icon" style="font-size: 11px; color: #8ab4f8;">点击展开</span>
+              </h3>
+              <div id="md-tags-container" style="display: none; margin-top: 10px;">
+                <div id="md-tags" class="tag-freq-box" style="max-height: 180px; overflow-y: auto;">
+                  <!-- 动态加载 -->
+                </div>
               </div>
             </div>
           </div>
@@ -1005,6 +1197,67 @@
           <span id="batch-progress-stats"></span>
         </div>
       </div>
+    </div>
+
+    <!-- 全局系统设置弹窗 -->
+    <div id="settings-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.65); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+      <div class="modal-content" style="width: 480px; max-width: 90vw; background: #181825; border: 1px solid #313244; border-radius: 12px; padding: 22px; box-shadow: 0 12px 36px rgba(0,0,0,0.6); color: #cdd6f4;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #313244; padding-bottom: 12px; margin-bottom: 16px;">
+          <div class="modal-title" style="font-size: 16px; font-weight: bold; color: #89b4fa; display: flex; align-items: center; gap: 8px;">⚙️ 系统全局设置</div>
+          <div class="close-btn" id="settings-modal-close" style="cursor: pointer; font-size: 20px; color: #a6adc8;">&times;</div>
+        </div>
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="param-section" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 8px;">
+            <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 14px; color: #f5e0dc;">🌐 Civitai API Key (Personal Access Token)</h3>
+            <div style="font-size: 12px; color: #a6adc8; line-height: 1.5; margin-bottom: 10px;">
+              配置 API 密钥可解锁 Civitai 受限/R18/会员模型的推荐触发词拉取，并提升 API 请求额度。可在 <a href="https://civitai.com/user/account" target="_blank" style="color: #89b4fa; text-decoration: underline;">Civitai 个人账号设置页面</a> 生成 Token。
+            </div>
+            <form onsubmit="return false;" style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; width: 100%;">
+              <input type="password" id="input-civitai-api-key" autocomplete="current-password" placeholder="粘贴你的 Civitai API Token..." style="flex: 1; padding: 8px 12px; background: #11111b; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; font-size: 13px; outline: none;" />
+              <button type="button" class="btn" id="btn-toggle-key-visibility" style="padding: 8px 12px; font-size: 12px;" title="显示/隐藏密钥">👁️</button>
+            </form>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <button class="btn" id="btn-test-civitai-key" style="background: rgba(137, 180, 250, 0.2); border: 1px solid rgba(137, 180, 250, 0.5); color: #89b4fa; padding: 6px 14px; font-size: 12px; font-weight: bold; border-radius: 6px;">🧪 测试 API 连通性</button>
+              <span id="test-key-result" style="font-size: 12px; flex: 1;"></span>
+            </div>
+          </div>
+
+          <!-- 悬浮大图尺寸调节设置 -->
+          <div class="param-section" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 8px;">
+            <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 14px; color: #f5e0dc; display: flex; justify-content: space-between; align-items: center;">
+              <span>🖼️ 悬浮大图预览尺寸</span>
+              <span id="preview-size-display" style="color: #89b4fa; font-weight: bold; font-size: 13px;">280 px</span>
+            </h3>
+            <div style="font-size: 12px; color: #a6adc8; line-height: 1.5; margin-bottom: 10px;">
+              拖动调节鼠标悬浮 1.5 秒时弹出的预览大图高度上限（150px - 500px）。
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <input type="range" id="input-hover-image-size" min="150" max="500" step="10" value="280" style="flex: 1; accent-color: #89b4fa; cursor: pointer;" />
+              <button type="button" class="btn" id="btn-reset-preview-size" style="padding: 4px 10px; font-size: 11px;">重置</button>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #313244; padding-top: 14px;">
+          <button class="btn" id="settings-modal-cancel" style="padding: 6px 16px;">取消</button>
+          <button class="btn" id="settings-modal-save" style="background: var(--primary); color: white; border: none; font-weight: bold; padding: 6px 20px;">保存配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Melodify Style Circular Scroll Progress Back-To-Top Button -->
+    <div id="back-to-top" title="回到顶部">
+      <svg class="progress-ring" width="46" height="46" viewBox="0 0 46 46">
+        <defs>
+          <linearGradient id="back-to-top-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#f3a6e9" />
+            <stop offset="50%" stop-color="#c462c9" />
+            <stop offset="100%" stop-color="#87389f" />
+          </linearGradient>
+        </defs>
+        <circle class="progress-ring__track" cx="23" cy="23" r="19" stroke="rgba(243, 166, 233, 0.18)" stroke-width="3" fill="none" />
+        <circle class="progress-ring__circle" cx="23" cy="23" r="19" stroke="url(#back-to-top-gradient)" stroke-width="3" fill="none" stroke-dasharray="119.38" stroke-dashoffset="119.38" stroke-linecap="round" />
+      </svg>
+      <div class="back-to-top-icon">▲</div>
     </div>
 
     <!-- 逻辑脚本 -->
@@ -1056,6 +1309,21 @@
       let viewMode = "icon"; // 'icon' or 'list'
       let hoverTimer = null;
       let selectedLoraName = null;
+      let disableAutoTrigger = false;
+      let civitaiApiKey = "";
+      let hoverImageSize = parseInt(localStorage.getItem("xbhh_hover_image_size") || "280", 10);
+
+      function formatFileSize(bytes) {
+        if (!bytes || isNaN(bytes) || bytes <= 0) return "-";
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let i = 0;
+        let size = bytes;
+        while (size >= 1024 && i < units.length - 1) {
+          size /= 1024;
+          i++;
+        }
+        return `${size.toFixed(2)} ${units[i]}`;
+      }
       
       // Multi-select management
       let selectedLoras = new Set();
@@ -1065,6 +1333,48 @@
 
       const MAX_CONSECUTIVE_FAILURES = 5;
       const CIVITAI_ITEM_DELAY_MS = 350;
+
+      function getCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+        return "";
+      }
+
+      function setCookie(name, value, days = 365) {
+        document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${days * 86400}`;
+      }
+
+      function updateViewToggleUI() {
+        const btnToggleView = document.getElementById("btn-toggle-view");
+        const btnCol = document.getElementById("btn-col-config");
+        if (!btnToggleView) return;
+        if (viewMode === "icon") {
+          btnToggleView.innerHTML = "🖼️ 图标视图";
+          btnToggleView.title = "当前为图标视图，点击切换为列表视图";
+          if (btnCol) btnCol.style.display = "none";
+          const colSel = document.getElementById("column-selector");
+          if (colSel) colSel.style.display = "none";
+        } else {
+          btnToggleView.innerHTML = "📋 列表视图";
+          btnToggleView.title = "当前为列表视图，点击切换为图标视图";
+          if (btnCol) btnCol.style.display = "inline-flex";
+        }
+      }
+
+      function updateAutoTriggerBtnUI() {
+        const btn = document.getElementById("btn-toggle-auto-trigger");
+        if (!btn) return;
+        if (disableAutoTrigger) {
+          btn.textContent = "🚫 节点自动提示词：已关闭";
+          btn.classList.add("btn-off");
+          btn.title = "已关闭自动提示词功能：在 LoRA 堆 Plus 节点中选择或添加 LoRA 时，不再自动填充高频/Civitai提示词（保留手动设定的自定义触发词）。点击切换为开启。";
+        } else {
+          btn.textContent = "⚡ 节点自动提示词：已开启";
+          btn.classList.remove("btn-off");
+          btn.title = "已开启自动提示词功能：在 LoRA 堆 Plus 节点中选择或添加 LoRA 时，会自动填充默认高频/Civitai提示词。点击切换为关闭。";
+        }
+      }
 
       // --- 视图配置列 ---
       const columnsConfig = [
@@ -1081,6 +1391,7 @@
               if (d.db_info.user_trigger.trim() === "") return "[自定义] (空)";
               return `[自定义] ${d.db_info.user_trigger}`;
             }
+            if (disableAutoTrigger) return "-";
             if (d.db_info?.auto_trigger) return `[Auto] ${d.db_info.auto_trigger}`;
             if (d.db_info?.trained_words) return `[Civitai] ${d.db_info.trained_words}`;
             return "-";
@@ -1130,6 +1441,30 @@
 
       // 初始化绑定
       window.addEventListener("DOMContentLoaded", async () => {
+        const savedView = localStorage.getItem("xbhh_lora_view_mode");
+        if (savedView === "list" || savedView === "icon") {
+          viewMode = savedView;
+        }
+        updateViewToggleUI();
+
+        const settings = await fetchAPI("/xbhh/lora/settings");
+        if (settings) {
+          if (typeof settings.disable_auto_trigger === "boolean") {
+            disableAutoTrigger = settings.disable_auto_trigger;
+          }
+          if (settings.civitai_api_key) {
+            civitaiApiKey = settings.civitai_api_key;
+          }
+        } else {
+          disableAutoTrigger = localStorage.getItem("xbhh_disable_auto_trigger") === "true";
+        }
+
+        if (!civitaiApiKey) {
+          civitaiApiKey = localStorage.getItem("xbhh_civitai_api_key") || getCookie("xbhh_civitai_api_key") || "";
+        }
+
+        updateAutoTriggerBtnUI();
+
         await loadFolders();
         await loadLoras("");
         setupEvents();
@@ -1200,12 +1535,12 @@
           
           let arrowHtml = "";
           if (isParent) {
-            arrowHtml = `<span class="folder-toggle" style="display:inline-block; width:15px; cursor:pointer; font-size:10px;">${isCollapsed ? '▶' : '▼'}</span>`;
+            arrowHtml = `<span class="folder-toggle folder-arrow" style="display:inline-block; width:16px; cursor:pointer; font-size:11px; color:var(--primary);">${isCollapsed ? '▸' : '▾'}</span>`;
           } else {
-            arrowHtml = `<span style="display:inline-block; width:15px;"></span>`;
+            arrowHtml = `<span class="folder-arrow" style="display:inline-block; width:16px; font-size:10px; color:var(--text-muted); opacity:0.6;">•</span>`;
           }
 
-          div.innerHTML = `${arrowHtml}<span class="folder-icon">📁</span> <span>${info.name}</span>`;
+          div.innerHTML = `${arrowHtml}<span style="font-weight: 500;">${info.name}</span>`;
           
           // 点击箭头切换折叠状态
           const toggleBtn = div.querySelector('.folder-toggle');
@@ -1214,10 +1549,10 @@
               e.stopPropagation();
               if (collapsedFolders.has(path)) {
                 collapsedFolders.delete(path);
-                toggleBtn.innerText = '▼';
+                toggleBtn.innerText = '▾';
               } else {
                 collapsedFolders.add(path);
-                toggleBtn.innerText = '▶';
+                toggleBtn.innerText = '▸';
               }
               updateFolderVisibility();
             };
@@ -1318,12 +1653,21 @@
         const countSpan = document.getElementById("selected-count");
         countSpan.innerText = selectedLoras.size;
 
+        const btnInvert = document.getElementById("btn-select-invert");
+        const btnNone = document.getElementById("btn-select-none");
+
         if (selectedLoras.size > 0) {
           toolbar.classList.add("show");
+          if (btnInvert) btnInvert.style.display = "inline-flex";
+          if (btnNone) btnNone.style.display = "inline-flex";
         } else {
           toolbar.classList.remove("show");
+          if (btnInvert) btnInvert.style.display = "none";
+          if (btnNone) btnNone.style.display = "none";
         }
       }
+
+      let currentFilterRule = "all";
 
       // --- 获取当前过滤后的列表 ---
       function getFilteredLoras() {
@@ -1331,15 +1675,32 @@
           .getElementById("search-input")
           .value.toLowerCase().trim();
 
-        if (!query) return currentLoras;
+        let list = currentLoras;
 
-        const trieMatches = loraTrie.search(query);
-        return currentLoras.filter(
-          (lora) =>
-            trieMatches.includes(lora) ||
-            lora.name.toLowerCase().includes(query) ||
-            (lora.db_info?.active_trigger || "").toLowerCase().includes(query)
-        );
+        // 1. 关键词搜索
+        if (query) {
+          const trieMatches = loraTrie.search(query);
+          list = list.filter(
+            (lora) =>
+              trieMatches.includes(lora) ||
+              lora.name.toLowerCase().includes(query) ||
+              (lora.db_info?.active_trigger || "").toLowerCase().includes(query)
+          );
+        }
+
+        // 2. 按钮规则过滤 (方便后续扩展更多过滤规则)
+        if (currentFilterRule === "hide_custom") {
+          list = list.filter((lora) => !hasUserTrigger(lora));
+        } else if (currentFilterRule === "only_custom") {
+          list = list.filter((lora) => hasUserTrigger(lora));
+        } else if (currentFilterRule === "no_trigger") {
+          list = list.filter((lora) => {
+            const tr = lora.db_info?.active_trigger || lora.db_info?.user_trigger || lora.db_info?.auto_trigger || lora.db_info?.trained_words || "";
+            return !tr || !tr.trim();
+          });
+        }
+
+        return list;
       }
 
       // --- 多选逻辑 ---
@@ -1434,22 +1795,53 @@
         return new Promise((resolve) => setTimeout(resolve, ms));
       }
       function hasUserTrigger(lora) {
-        return lora.db_info?.user_trigger !== null && lora.db_info?.user_trigger !== undefined;
+        if (!lora || !lora.db_info) return false;
+        const ut = lora.db_info.user_trigger;
+        if (ut !== null && ut !== undefined) {
+          return true;
+        }
+        const profiles = lora.db_info.profiles;
+        if (Array.isArray(profiles) && profiles.length > 0) {
+          return true;
+        }
+        return false;
+      }
+
+      function showToast(message) {
+        let toastContainer = document.getElementById("toast-container");
+        if (!toastContainer) {
+          toastContainer = document.createElement("div");
+          toastContainer.id = "toast-container";
+          toastContainer.style.cssText = "position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000; display: flex; flex-direction: column; gap: 8px; pointer-events: none;";
+          document.body.appendChild(toastContainer);
+        }
+        const toast = document.createElement("div");
+        toast.innerText = message;
+        toast.style.cssText = "background: rgba(30, 30, 46, 0.92); color: #89b4fa; padding: 8px 16px; border-radius: 6px; border: 1px solid #45475a; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.2s, transform 0.2s; transform: translateY(10px); pointer-events: auto;";
+        toastContainer.appendChild(toast);
+        requestAnimationFrame(() => {
+          toast.style.opacity = "1";
+          toast.style.transform = "translateY(0)";
+        });
+        setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transform = "translateY(10px)";
+          setTimeout(() => toast.remove(), 200);
+        }, 2500);
       }
 
       // --- 渲染逻辑 ---
       function renderView() {
         const filtered = getFilteredLoras();
+        updateViewToggleUI();
 
         if (viewMode === "icon") {
           document.getElementById("icon-view").style.display = "grid";
           document.getElementById("list-view").style.display = "none";
-          document.getElementById("btn-col-config").style.display = "none";
           renderIconView(filtered);
         } else {
           document.getElementById("icon-view").style.display = "none";
           document.getElementById("list-view").style.display = "table";
-          document.getElementById("btn-col-config").style.display = "flex";
           renderListView(filtered);
         }
       }
@@ -1580,8 +1972,11 @@
           const tdName = document.createElement("td");
           tdName.innerText = basename;
           if (hasUserTrigger(lora)) {
-            tdName.title = `自定义触发词: ${lora.db_info.user_trigger}`;
+            tdName.title = `自定义触发词: ${lora.db_info.user_trigger || ''}`;
             tdName.style.color = "#9cd2f8";
+          } else {
+            tdName.title = "";
+            tdName.style.color = "";
           }
           tr.appendChild(tdName);
 
@@ -1605,6 +2000,8 @@
             }
             showDetailModal(lora.name);
           };
+          tr.onmouseenter = (e) => handleHoverStart(e, lora);
+          tr.onmouseleave = handleHoverEnd;
           tr.oncontextmenu = (e) => handleContextMenu(e, lora.name);
           tbody.appendChild(tr);
         });
@@ -1773,17 +2170,43 @@
         // --- 侧边栏折叠 ---
         const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
         const sidebar = document.getElementById("sidebar");
-        btnToggleSidebar.onclick = () => {
-          if (sidebar.style.display === "none") {
-            sidebar.style.display = "flex";
-          } else {
-            sidebar.style.display = "none";
-          }
-        };
+        if (btnToggleSidebar && sidebar) {
+          btnToggleSidebar.onclick = () => {
+            if (sidebar.style.display === "none") {
+              sidebar.style.display = "flex";
+              btnToggleSidebar.classList.add("active");
+            } else {
+              sidebar.style.display = "none";
+              btnToggleSidebar.classList.remove("active");
+            }
+          };
+        }
+
+
 
         document
           .getElementById("search-input")
           .addEventListener("input", renderView);
+
+        // 绑定规则过滤下拉框事件
+        const selectFilter = document.getElementById("filter-rule-select");
+        if (selectFilter) {
+          selectFilter.onchange = () => {
+            currentFilterRule = selectFilter.value;
+            renderView();
+          };
+        }
+
+        const btnToggleAuto = document.getElementById("btn-toggle-auto-trigger");
+        if (btnToggleAuto) {
+          btnToggleAuto.onclick = async () => {
+            disableAutoTrigger = !disableAutoTrigger;
+            localStorage.setItem("xbhh_disable_auto_trigger", disableAutoTrigger);
+            updateAutoTriggerBtnUI();
+            await postAPI("/xbhh/lora/settings", { disable_auto_trigger: disableAutoTrigger });
+            renderView();
+          };
+        }
 
         document.getElementById("btn-select-all").onclick = selectAllFiltered;
         document.getElementById("btn-select-invert").onclick = invertSelection;
@@ -1803,41 +2226,130 @@
           }
         };
 
-        const btnIcon = document.getElementById("btn-view-icon");
-        const btnList = document.getElementById("btn-view-list");
+        const btnToggleView = document.getElementById("btn-toggle-view");
+        if (btnToggleView) {
+          btnToggleView.onclick = () => {
+            viewMode = viewMode === "icon" ? "list" : "icon";
+            localStorage.setItem("xbhh_lora_view_mode", viewMode);
+            updateViewToggleUI();
+            renderView();
+          };
+        }
 
-        btnIcon.onclick = () => {
-          viewMode = "icon";
-          btnIcon.classList.add("active");
-          btnList.classList.remove("active");
-          renderView();
+        // --- 全局系统设置弹窗事件 ---
+        const settingsModal = document.getElementById("settings-modal");
+        const btnOpenSettings = document.getElementById("btn-open-settings");
+        const settingsModalClose = document.getElementById("settings-modal-close");
+        const settingsModalCancel = document.getElementById("settings-modal-cancel");
+        const settingsModalSave = document.getElementById("settings-modal-save");
+        const inputApiKey = document.getElementById("input-civitai-api-key");
+        const btnToggleKeyVis = document.getElementById("btn-toggle-key-visibility");
+        const btnTestKey = document.getElementById("btn-test-civitai-key");
+        const testKeyResult = document.getElementById("test-key-result");
+
+        // --- 悬浮大图尺寸调节绑定 ---
+        const inputHoverImageSize = document.getElementById("input-hover-image-size");
+        const previewSizeDisplay = document.getElementById("preview-size-display");
+        const btnResetPreviewSize = document.getElementById("btn-reset-preview-size");
+
+        if (inputHoverImageSize && previewSizeDisplay) {
+          inputHoverImageSize.oninput = () => {
+            previewSizeDisplay.innerText = `${inputHoverImageSize.value} px`;
+          };
+        }
+        if (btnResetPreviewSize) {
+          btnResetPreviewSize.onclick = () => {
+            if (inputHoverImageSize) inputHoverImageSize.value = 280;
+            if (previewSizeDisplay) previewSizeDisplay.innerText = "280 px";
+          };
+        }
+
+        if (btnOpenSettings) {
+          btnOpenSettings.onclick = () => {
+            inputApiKey.value = civitaiApiKey || "";
+            testKeyResult.innerText = "";
+            if (inputHoverImageSize) inputHoverImageSize.value = hoverImageSize;
+            if (previewSizeDisplay) previewSizeDisplay.innerText = `${hoverImageSize} px`;
+            settingsModal.style.display = "flex";
+          };
+        }
+
+        const closeSettingsModal = () => {
+          settingsModal.style.display = "none";
         };
-        btnList.onclick = () => {
-          viewMode = "list";
-          btnList.classList.add("active");
-          btnIcon.classList.remove("active");
-          renderView();
-        };
+        if (settingsModalClose) settingsModalClose.onclick = closeSettingsModal;
+        if (settingsModalCancel) settingsModalCancel.onclick = closeSettingsModal;
+
+        if (btnToggleKeyVis) {
+          btnToggleKeyVis.onclick = () => {
+            if (inputApiKey.type === "password") {
+              inputApiKey.type = "text";
+              btnToggleKeyVis.innerText = "🔒";
+            } else {
+              inputApiKey.type = "password";
+              btnToggleKeyVis.innerText = "👁️";
+            }
+          };
+        }
+
+        if (btnTestKey) {
+          btnTestKey.onclick = async () => {
+            const keyVal = inputApiKey.value.trim();
+            testKeyResult.style.color = "#8ab4f8";
+            testKeyResult.innerText = "测试中...";
+            btnTestKey.disabled = true;
+            const res = await postAPI("/xbhh/lora/test-civitai", { civitai_api_key: keyVal });
+            btnTestKey.disabled = false;
+            if (res && res.message) {
+              testKeyResult.innerText = res.message;
+              testKeyResult.style.color = res.success ? "#aeeaae" : "#ff8a8a";
+            } else {
+              testKeyResult.innerText = "❌ 测试失败，无法连接服务器";
+              testKeyResult.style.color = "#ff8a8a";
+            }
+          };
+        }
+
+        if (settingsModalSave) {
+          settingsModalSave.onclick = async () => {
+            const newKey = inputApiKey.value.trim();
+            civitaiApiKey = newKey;
+            localStorage.setItem("xbhh_civitai_api_key", newKey);
+            setCookie("xbhh_civitai_api_key", newKey);
+
+            if (inputHoverImageSize) {
+              hoverImageSize = parseInt(inputHoverImageSize.value, 10);
+              localStorage.setItem("xbhh_hover_image_size", hoverImageSize);
+            }
+
+            await postAPI("/xbhh/lora/settings", { civitai_api_key: newKey });
+            alert("配置保存成功！");
+            closeSettingsModal();
+          };
+        }
 
         const btnCol = document.getElementById("btn-col-config");
-        const colSelector = document.getElementById("column-selector");
-        btnCol.onclick = () => {
-          colSelector.style.display =
-            colSelector.style.display === "block" ? "none" : "block";
-        };
-        document.querySelectorAll("#column-selector input").forEach((el) => {
-          el.onchange = renderView;
-        });
+        const colSelectorDropdown = document.getElementById("column-selector");
+        if (btnCol && colSelectorDropdown) {
+          btnCol.onclick = (e) => {
+            e.stopPropagation();
+            colSelectorDropdown.style.display =
+              colSelectorDropdown.style.display === "none" || !colSelectorDropdown.style.display ? "flex" : "none";
+          };
+          document.querySelectorAll("#column-selector input").forEach((el) => {
+            el.onchange = renderView;
+          });
 
-        document.addEventListener("click", (e) => {
-          if (!btnCol.contains(e.target) && !colSelector.contains(e.target)) {
-            colSelector.style.display = "none";
-          }
-          const menu = document.getElementById("context-menu");
-          if (!menu.contains(e.target)) {
-            menu.style.display = "none";
-          }
-        });
+          document.addEventListener("click", (e) => {
+            if (!btnCol.contains(e.target) && !colSelectorDropdown.contains(e.target)) {
+              colSelectorDropdown.style.display = "none";
+            }
+            const menu = document.getElementById("context-menu");
+            if (menu && !menu.contains(e.target)) {
+              menu.style.display = "none";
+            }
+          });
+        }
 
         document.getElementById("menu-detail").onclick = () => {
           document.getElementById("context-menu").style.display = "none";
@@ -1854,57 +2366,116 @@
             document.getElementById("detail-modal").style.display = "none";
           }
         };
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            const modal = document.getElementById("detail-modal");
+            if (modal.style.display === "flex" || modal.style.display === "block") {
+              modal.style.display = "none";
+            }
+          }
+        });
+
+        // 绑定单 LoRA 详情弹窗左侧 3 个分类的折叠/展开功能
+        const bindCollapsibleSection = (headerId, bodyId, iconId) => {
+          const header = document.getElementById(headerId);
+          const body = document.getElementById(bodyId);
+          const icon = document.getElementById(iconId);
+          if (header && body && icon) {
+            header.onclick = () => {
+              const isOpen = body.style.display !== "none";
+              body.style.display = isOpen ? "none" : "block";
+              icon.innerText = isOpen ? "▶" : "▼";
+            };
+          }
+        };
+        bindCollapsibleSection("sec-basic-header", "sec-basic-body", "sec-basic-icon");
+        bindCollapsibleSection("sec-train-header", "sec-train-body", "sec-train-icon");
+        bindCollapsibleSection("sec-misc-header", "sec-misc-body", "sec-misc-icon");
       }
 
-      // --- 悬浮摘要 (1.5秒延迟) ---
+      // --- 悬浮 1.5s 大图与参数统一融合预览 ---
       function handleHoverStart(e, lora) {
         clearTimeout(hoverTimer);
+        const targetEl = e.currentTarget;
+
+        // 统一 1.5 秒悬浮触发大图与参数合并卡片
         hoverTimer = setTimeout(() => {
-          showHoverSummary(e.currentTarget, lora);
+          showHoverCard(targetEl, lora);
         }, 1500);
       }
 
       function handleHoverEnd() {
         clearTimeout(hoverTimer);
-        document.getElementById("hover-summary").style.display = "none";
+        hideHoverCard();
       }
 
-      function showHoverSummary(element, lora) {
-        const summary = document.getElementById("hover-summary");
-        const tp = lora.training_params || {};
+      function showHoverCard(element, lora) {
+        const popover = document.getElementById("image-preview-popover");
+        const img = document.getElementById("image-preview-img");
+        const details = document.getElementById("image-preview-details");
+        if (!popover || !img || !details || !lora) return;
 
-        let html = `<h4>${lora.name.split("/").pop().split("\\").pop()}</h4>`;
+        if (lora.preview_image) {
+          img.src = `/xbhh/view/${encodeURIComponent(lora.preview_image)}`;
+          img.style.display = "block";
+          img.style.maxHeight = `${hoverImageSize}px`;
+        } else {
+          img.style.display = "none";
+          img.src = "";
+        }
+        popover.style.width = `${Math.max(320, hoverImageSize + 50)}px`;
+
+        const tp = lora.training_params || {};
+        let html = `<h4 style="margin:2px 0 8px 0; color:#fff; font-size:14px; border-bottom:1px solid #444; padding-bottom:5px;">${lora.name.split("/").pop().split("\\").pop()}</h4>`;
         html += _row("基础模型", tp.base_model || "-");
-        html += _row(
-          "类型",
-          tp.network_module?.replace("networks.", "") || "-",
-        );
+        html += _row("类型", tp.network_module?.replace("networks.", "") || "-");
         html += _row("Rank (Dim)", tp.network_dim || "-");
         html += _row("学习率", tp.unet_lr || "-");
         html += _row("Epochs", tp.num_epochs || "-");
         html += _row("分辨率", tp.resolution || "-");
-        
         const trig = lora.db_info?.active_trigger || "";
         if (trig) {
           html += _row("激活触发词", `<span style="color:#aeeaae">${trig.substring(0, 45)}${trig.length > 45 ? "..." : ""}</span>`);
         }
+        details.innerHTML = html;
 
-        summary.innerHTML = html;
-        summary.style.display = "block";
+        popover.style.display = "flex";
+        popover.style.opacity = "1";
 
         const rect = element.getBoundingClientRect();
-        let left = rect.right + 10;
+        const popWidth = popover.offsetWidth || 340;
+        const popHeight = popover.offsetHeight || 420;
+
+        // 优先位置：元素右侧
+        let left = rect.right + 12;
         let top = rect.top;
 
-        if (left + 280 > window.innerWidth) {
-          left = rect.left - 280 - 10;
+        // 视口水平碰撞检测：若右侧超屏则改左侧
+        if (left + popWidth > window.innerWidth - 10) {
+          left = rect.left - popWidth - 12;
         }
-        if (top + summary.offsetHeight > window.innerHeight) {
-          top = window.innerHeight - summary.offsetHeight - 10;
+        if (left < 10) {
+          left = 10;
         }
 
-        summary.style.left = left + "px";
-        summary.style.top = top + "px";
+        // 视口垂直碰撞检测
+        if (top + popHeight > window.innerHeight - 10) {
+          top = window.innerHeight - popHeight - 10;
+        }
+        if (top < 10) {
+          top = 10;
+        }
+
+        popover.style.left = left + "px";
+        popover.style.top = top + "px";
+      }
+
+      function hideHoverCard() {
+        const popover = document.getElementById("image-preview-popover");
+        if (popover) {
+          popover.style.display = "none";
+          popover.style.opacity = "0";
+        }
       }
       
       function _row(label, val) {
@@ -1930,7 +2501,11 @@
 
       // --- Click pill to append to trigger editor ---
       function addWordToTriggerInput(word) {
-        const input = document.getElementById("modal-trigger-input");
+        const presetTriggers = document.querySelectorAll(".preset-card-trigger");
+        let input = document.getElementById("modal-trigger-input");
+        if (presetTriggers.length > 0) {
+          input = presetTriggers[presetTriggers.length - 1];
+        }
         let val = input.value.trim();
         
         // Split existing tags by comma
@@ -1940,6 +2515,7 @@
         }
         
         input.value = existing.join(", ");
+        input.dispatchEvent(new Event("change"));
         input.focus();
       }
 
@@ -1958,6 +2534,8 @@
         [
           "md-base",
           "md-hash",
+          "md-size",
+          "md-rel-path",
           "md-module",
           "md-dim",
           "md-epoch",
@@ -1985,6 +2563,7 @@
         const tp = data.training_params || {};
         const tags = data.tag_frequency || {};
         const dbInfo = data.db_info || {};
+        const fileInfo = data.file_info || {};
 
         document.getElementById("modal-title").innerText = loraName
           .split("/")
@@ -1995,13 +2574,15 @@
         // 填基本信息
         document.getElementById("md-base").innerText = tp.base_model || "未知";
         document.getElementById("md-hash").innerText = dbInfo.hash || tp.model_hash || "-";
+        document.getElementById("md-size").innerText = formatFileSize(fileInfo.size);
+        document.getElementById("md-rel-path").innerText = loraName || "-";
+
+        // 填训练参数
         document.getElementById("md-module").innerText =
           tp.network_module?.replace("networks.", "") || "-";
         const alpha = tp.network_alpha ? ` / ${tp.network_alpha}` : "";
         document.getElementById("md-dim").innerText =
           (tp.network_dim || "-") + alpha;
-
-        // 训练参数
         document.getElementById("md-epoch").innerText = tp.num_epochs || "-";
         document.getElementById("md-res").innerText = tp.resolution || "-";
         document.getElementById("md-lr").innerText =
@@ -2058,6 +2639,258 @@
         };
         renderCivitaiPills(dbInfo.trained_words);
 
+        // 标签频率折叠头控制
+        const tagHeader = document.getElementById("tag-freq-toggle-header");
+        const tagContainer = document.getElementById("md-tags-container");
+        const tagIcon = document.getElementById("tag-freq-toggle-icon");
+        let isTagFreqOpen = false;
+
+        tagHeader.onclick = () => {
+          isTagFreqOpen = !isTagFreqOpen;
+          tagContainer.style.display = isTagFreqOpen ? "block" : "none";
+          tagHeader.querySelector("span").innerText = isTagFreqOpen ? "▼ 标签使用频率 (Tag Frequency)" : "▶ 标签使用频率 (Tag Frequency)";
+          tagIcon.innerText = isTagFreqOpen ? "点击收起" : "点击展开";
+        };
+
+        // 渲染 提示词预设 Profiles (卡片化 + 多选组合)
+        const presetContainer = document.getElementById("preset-cards-container");
+        const singleTriggerWrapper = document.getElementById("single-trigger-wrapper");
+        let currentProfiles = Array.isArray(dbInfo.profiles) ? [...dbInfo.profiles] : [];
+
+        currentProfiles.forEach(p => {
+          if (p.enabled === undefined) p.enabled = true;
+        });
+
+        const saveAllProfilesAndTriggers = async () => {
+          await postAPI("/xbhh/lora/profiles/update", {
+            name: loraName,
+            profiles: currentProfiles
+          });
+
+          let combinedTrigger = "";
+          if (currentProfiles.length > 0) {
+            combinedTrigger = currentProfiles
+              .filter(p => p.enabled && p.trigger && p.trigger.trim())
+              .map(p => p.trigger.trim())
+              .join(", ");
+          } else {
+            combinedTrigger = document.getElementById("modal-trigger-input").value.trim();
+          }
+
+          await postAPI("/xbhh/lora/trigger/update", {
+            name: loraName,
+            hash: dbInfo.hash,
+            trigger: combinedTrigger
+          });
+
+          // 同步本地 currentLoras 状态并实时刷新主页面视图
+          const localItem = currentLoras.find(l => l.name === loraName);
+          if (localItem) {
+            if (!localItem.db_info) localItem.db_info = {};
+            localItem.db_info.profiles = [...currentProfiles];
+            localItem.db_info.user_trigger = combinedTrigger;
+            localItem.db_info.active_trigger = combinedTrigger || localItem.db_info.auto_trigger || localItem.db_info.trained_words || "";
+            buildTrie(currentLoras);
+            renderView();
+          }
+        };
+
+        const renderPresetCards = () => {
+          presetContainer.innerHTML = "";
+
+          if (currentProfiles.length === 0) {
+            singleTriggerWrapper.style.display = "block";
+          } else {
+            singleTriggerWrapper.style.display = "none";
+
+            currentProfiles.forEach((prof, idx) => {
+              const card = document.createElement("div");
+              card.className = "preset-card";
+              card.style.cssText = "background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 6px 10px; transition: all 0.2s; cursor: default;";
+
+              let isOpen = prof._collapsed !== undefined ? !prof._collapsed : true;
+
+              // Card Header
+              const header = document.createElement("div");
+              header.style.cssText = "display: flex; align-items: center; gap: 6px;";
+
+              // Drag handle (仅手柄元素开启 draggable，彻底绝强 card 及其他子元素被激活拖拽)
+              const dragHandle = document.createElement("span");
+              dragHandle.innerText = "⣿";
+              dragHandle.title = "按住拖拽调整预设顺序";
+              dragHandle.draggable = true;
+              dragHandle.style.cssText = "cursor: grab; user-select: none; color: #7f849c; font-size: 14px; width: 14px; text-align: center;";
+
+              dragHandle.ondragstart = (e) => {
+                e.dataTransfer.setData("text/plain", idx.toString());
+                card.style.opacity = "0.4";
+              };
+
+              dragHandle.ondragend = () => {
+                card.style.opacity = "1";
+                document.querySelectorAll(".preset-card").forEach(c => c.style.borderTop = "");
+              };
+
+              const toggleIcon = document.createElement("span");
+              toggleIcon.innerText = isOpen ? "▼" : "▶";
+              toggleIcon.style.cssText = "cursor: pointer; user-select: none; color: #8ab4f8; font-size: 11px; width: 12px;";
+              toggleIcon.title = "点击展开/折叠该预设";
+
+              const checkbox = document.createElement("input");
+              checkbox.type = "checkbox";
+              checkbox.checked = !!prof.enabled;
+              checkbox.title = "勾选以启用并组合此预设";
+              checkbox.style.cssText = "width: 15px; height: 15px; cursor: pointer; accent-color: #2d78f5;";
+
+              const nameInput = document.createElement("input");
+              nameInput.type = "text";
+              nameInput.value = prof.name || `预设 ${idx + 1}`;
+              nameInput.placeholder = "预设名称...";
+              nameInput.style.cssText = "flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; color: #fff; padding: 3px 8px; font-size: 12px; font-weight: bold;";
+
+              // Quick order buttons: Up / Down
+              const upBtn = document.createElement("button");
+              upBtn.className = "btn";
+              upBtn.innerText = "▲";
+              upBtn.title = "向上移动预设";
+              upBtn.disabled = idx === 0;
+              upBtn.style.cssText = `padding: 1px 4px; font-size: 9px; height: 22px; opacity: ${idx === 0 ? '0.3' : '0.8'};`;
+
+              const downBtn = document.createElement("button");
+              downBtn.className = "btn";
+              downBtn.innerText = "▼";
+              downBtn.title = "向下移动预设";
+              downBtn.disabled = idx === currentProfiles.length - 1;
+              downBtn.style.cssText = `padding: 1px 4px; font-size: 9px; height: 22px; opacity: ${idx === currentProfiles.length - 1 ? '0.3' : '0.8'};`;
+
+              const delBtn = document.createElement("button");
+              delBtn.className = "btn";
+              delBtn.innerText = "🗑️";
+              delBtn.title = "删除此预设";
+              delBtn.style.cssText = "padding: 1px 6px; font-size: 11px; height: 22px; background: rgba(255, 80, 80, 0.2); border-color: rgba(255, 80, 80, 0.4); color: #ff8888;";
+
+              header.appendChild(dragHandle);
+              header.appendChild(toggleIcon);
+              header.appendChild(checkbox);
+              header.appendChild(nameInput);
+              header.appendChild(upBtn);
+              header.appendChild(downBtn);
+              header.appendChild(delBtn);
+
+              // Card Body
+              const body = document.createElement("div");
+              body.style.cssText = `margin-top: 6px; display: ${isOpen ? 'block' : 'none'};`;
+
+              const textarea = document.createElement("textarea");
+              textarea.className = "trigger-textarea preset-card-trigger";
+              textarea.value = prof.trigger || "";
+              textarea.placeholder = "输入该预设的提示词 (多个用逗号分隔)...";
+              textarea.style.cssText = "width: 100%; height: 48px; font-size: 11px; box-sizing: border-box;";
+
+              body.appendChild(textarea);
+              card.appendChild(header);
+              card.appendChild(body);
+              presetContainer.appendChild(card);
+
+              // Drag and Drop Target Events on Card
+              card.ondragover = (e) => {
+                e.preventDefault();
+                card.style.borderTop = "2px solid #89b4fa";
+              };
+
+              card.ondragleave = () => {
+                card.style.borderTop = "";
+              };
+
+              card.ondrop = async (e) => {
+                e.preventDefault();
+                card.style.borderTop = "";
+                const fromIdxStr = e.dataTransfer.getData("text/plain");
+                if (!fromIdxStr) return;
+                const fromIdx = parseInt(fromIdxStr, 10);
+                const toIdx = idx;
+                if (!isNaN(fromIdx) && fromIdx !== toIdx && fromIdx >= 0 && fromIdx < currentProfiles.length) {
+                  const movedItem = currentProfiles.splice(fromIdx, 1)[0];
+                  currentProfiles.splice(toIdx, 0, movedItem);
+                  await saveAllProfilesAndTriggers();
+                  renderPresetCards();
+                  showToast(`已将 [${movedItem.name}] 调整至位置 ${toIdx + 1}`);
+                }
+              };
+
+              // Event Listeners
+              toggleIcon.onclick = () => {
+                isOpen = !isOpen;
+                prof._collapsed = !isOpen;
+                body.style.display = isOpen ? "block" : "none";
+                toggleIcon.innerText = isOpen ? "▼" : "▶";
+              };
+
+              checkbox.onchange = async () => {
+                prof.enabled = checkbox.checked;
+                await saveAllProfilesAndTriggers();
+              };
+
+              nameInput.onchange = async () => {
+                prof.name = nameInput.value.trim() || `预设 ${idx + 1}`;
+                await saveAllProfilesAndTriggers();
+              };
+
+              textarea.onchange = async () => {
+                prof.trigger = textarea.value.trim();
+                await saveAllProfilesAndTriggers();
+              };
+
+              upBtn.onclick = async () => {
+                if (idx > 0) {
+                  const temp = currentProfiles[idx - 1];
+                  currentProfiles[idx - 1] = currentProfiles[idx];
+                  currentProfiles[idx] = temp;
+                  await saveAllProfilesAndTriggers();
+                  renderPresetCards();
+                }
+              };
+
+              downBtn.onclick = async () => {
+                if (idx < currentProfiles.length - 1) {
+                  const temp = currentProfiles[idx + 1];
+                  currentProfiles[idx + 1] = currentProfiles[idx];
+                  currentProfiles[idx] = temp;
+                  await saveAllProfilesAndTriggers();
+                  renderPresetCards();
+                }
+              };
+
+              delBtn.onclick = async () => {
+                if (confirm(`确定要删除预设 [${prof.name}] 吗？`)) {
+                  currentProfiles.splice(idx, 1);
+                  if (currentProfiles.length === 0) {
+                    document.getElementById("modal-trigger-input").value = "";
+                  }
+                  await saveAllProfilesAndTriggers();
+                  renderPresetCards();
+                  showToast(`已删除预设 [${prof.name}]`);
+                }
+              };
+            });
+          }
+        };
+        renderPresetCards();
+
+        // 点击 ➕ 添加预设 按钮
+        document.getElementById("btn-add-preset-modal").onclick = async () => {
+          const newProfName = `预设 ${currentProfiles.length + 1}`;
+          currentProfiles.push({
+            id: "prof_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+            name: newProfName,
+            trigger: "",
+            enabled: true
+          });
+          await saveAllProfilesAndTriggers();
+          renderPresetCards();
+          showToast(`已添加新预设 [${newProfName}]`);
+        };
+
         // 标签频率
         const tagBox = document.getElementById("md-tags");
         tagBox.innerHTML = "";
@@ -2088,9 +2921,9 @@
             // Update local object
             const localItem = currentLoras.find(l => l.name === loraName);
             if (localItem) {
+              if (!localItem.db_info) localItem.db_info = {};
               localItem.db_info.user_trigger = val;
-              localItem.db_info.active_trigger = val || dbInfo.auto_trigger || dbInfo.trained_words || "";
-              // Rebuild trie
+              localItem.db_info.active_trigger = val;
               buildTrie(currentLoras);
               renderView();
             }
@@ -2100,23 +2933,31 @@
           }
         };
 
-        // 清除/重置绑定
+        // 清除/重置绑定 (彻底清理自定义触发词及所有预设，恢复为 NULL 默认自动提示词状态)
         document.getElementById("btn-reset-trigger").onclick = async () => {
           document.getElementById("modal-trigger-input").value = "";
+          currentProfiles = [];
+          renderPresetCards();
+          await postAPI("/xbhh/lora/profiles/update", {
+            name: loraName,
+            profiles: []
+          });
           const res = await postAPI("/xbhh/lora/trigger/update", {
             name: loraName,
             hash: dbInfo.hash,
-            trigger: ""
+            trigger: null
           });
           if (res && res.success) {
             const localItem = currentLoras.find(l => l.name === loraName);
             if (localItem) {
-              localItem.db_info.user_trigger = "";
+              if (!localItem.db_info) localItem.db_info = {};
+              localItem.db_info.profiles = [];
+              localItem.db_info.user_trigger = null;
               localItem.db_info.active_trigger = dbInfo.auto_trigger || dbInfo.trained_words || "";
               buildTrie(currentLoras);
               renderView();
             }
-            alert("自定义触发词已清除，回退到自动提取触发词。");
+            alert("自定义触发词与预设已重置，已恢复为默认自动提取提示词状态。");
           }
         };
 
@@ -2154,6 +2995,156 @@
             alert("网络错误，Civitai 拉取推荐词失败。");
           }
         };
+      }
+
+      // --- 1. 动态网页标签标题 (Melodify 在线/离开 自动切换) ---
+      (function initDynamicTabTitle() {
+        const originalTitle = "xbhh • LoRA 模型全景控制台";
+        let titleTimer = null;
+
+        window.addEventListener("blur", () => {
+          document.title = "(つ 皿 ⊂) 崩溃啦！快回来~ | xbhh LoRA";
+        });
+
+        window.addEventListener("focus", () => {
+          document.title = "( ╰(‵□′)╯ 欢迎回来！ ) | xbhh LoRA";
+          clearTimeout(titleTimer);
+          titleTimer = setTimeout(() => {
+            document.title = originalTitle;
+          }, 2000);
+        });
+      })();
+
+      // --- 2. 梦幻飘雪/花瓣背景 Canvas 效果 ---
+      (function initSnowCanvas() {
+        const canvas = document.createElement("canvas");
+        canvas.id = "snow-canvas";
+        canvas.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:1;";
+        document.body.appendChild(canvas);
+
+        const ctx = canvas.getContext("2d");
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        window.addEventListener("resize", () => {
+          width = canvas.width = window.innerWidth;
+          height = canvas.height = window.innerHeight;
+        });
+
+        const flakes = [];
+        const numFlakes = 95;
+
+        for (let i = 0; i < numFlakes; i++) {
+          flakes.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            r: Math.random() * 2.5 + 1.0,
+            d: Math.random() * 1 + 0.5,
+            opacity: Math.random() * 0.85 + 0.35,
+            step: Math.random() * 0.05,
+            color: Math.random() > 0.3 ? "rgba(243, 166, 233, " : "rgba(255, 255, 255, "
+          });
+        }
+
+        function draw() {
+          ctx.clearRect(0, 0, width, height);
+
+          for (let f of flakes) {
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
+            ctx.fillStyle = f.color + f.opacity + ")";
+            ctx.shadowBlur = f.r * 4;
+            ctx.shadowColor = "rgba(243, 166, 233, 0.6)";
+            ctx.fill();
+
+            f.y += Math.cos(f.d) + 1.2 + f.r / 2;
+            f.x += Math.sin(f.step) * 0.7;
+            f.step += 0.01;
+
+            if (f.y > height + 10) {
+              f.y = -10;
+              f.x = Math.random() * width;
+            }
+          }
+          requestAnimationFrame(draw);
+        }
+        draw();
+      })();
+
+      // --- 3. 自定义光标跟随环与微光特效 ---
+      (function initCustomCursor() {
+        const follower = document.createElement("div");
+        follower.id = "cursor-follower";
+        document.body.appendChild(follower);
+
+        let mouseX = 0, mouseY = 0;
+        let followerX = 0, followerY = 0;
+
+        window.addEventListener("mousemove", (e) => {
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+        });
+
+        function animateCursor() {
+          followerX += (mouseX - followerX) * 0.2;
+          followerY += (mouseY - followerY) * 0.2;
+          follower.style.left = followerX + "px";
+          follower.style.top = followerY + "px";
+          requestAnimationFrame(animateCursor);
+        }
+        animateCursor();
+      })();
+      // --- 4. Melodify 风格 环形滚动进度 Back-To-Top 按钮 ---
+      function initBackToTop() {
+        const contentArea = document.getElementById("content-area");
+        const backToTopBtn = document.getElementById("back-to-top");
+        const progressCircle = document.querySelector(".progress-ring__circle");
+        if (!backToTopBtn || !progressCircle) return;
+
+        const circleRadius = 19;
+        const circumference = 2 * Math.PI * circleRadius; // ~119.38
+        progressCircle.style.strokeDasharray = `${circumference}`;
+        progressCircle.style.strokeDashoffset = `${circumference}`;
+
+        const updateScrollProgress = () => {
+          const target = contentArea || document.documentElement;
+          const scrollTop = target.scrollTop || window.scrollY || 0;
+          const scrollHeight = (target.scrollHeight || document.documentElement.scrollHeight) - (target.clientHeight || window.innerHeight);
+
+          if (scrollTop > 40) {
+            backToTopBtn.classList.add("show");
+          } else {
+            backToTopBtn.classList.remove("show");
+          }
+
+          let progress = 0;
+          if (scrollHeight > 0) {
+            progress = Math.min(Math.max(scrollTop / scrollHeight, 0), 1);
+          }
+
+          const offset = circumference - progress * circumference;
+          progressCircle.style.strokeDashoffset = offset;
+        };
+
+        if (contentArea) {
+          contentArea.addEventListener("scroll", updateScrollProgress, { passive: true });
+        }
+        window.addEventListener("scroll", updateScrollProgress, { passive: true });
+
+        updateScrollProgress();
+
+        backToTopBtn.onclick = () => {
+          if (contentArea) {
+            contentArea.scrollTo({ top: 0, behavior: "smooth" });
+          }
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        };
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initBackToTop);
+      } else {
+        initBackToTop();
       }
     </script>
   </body>

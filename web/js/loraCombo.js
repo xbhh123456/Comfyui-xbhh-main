@@ -615,30 +615,34 @@ app.registerExtension({
             widget.serializeValue = () => widget.value;
 
             widget.draw = (ctx, node, w, posY, h) => {
+                if (!widget.value) {
+                    widget.value = { on: true, lora: null, strength: 1.0, strengthTwo: null, trigger: "", triggerWeight: 1.0 };
+                }
                 const x = 10;
                 const y = posY;
                 const width = node.size[0] - 20;
                 const height = 20;
                 const midY = y + height / 2;
 
-                ctx.fillStyle = widget.value.on ? "rgba(50, 70, 50, 0.9)" : "rgba(40, 40, 40, 0.9)";
+                const isOn = widget.value.on ?? true;
+                ctx.fillStyle = isOn ? "rgba(50, 70, 50, 0.9)" : "rgba(40, 40, 40, 0.9)";
                 ctx.beginPath();
                 ctx.roundRect(x, y, width, height, 3);
                 ctx.fill();
                 
-                ctx.strokeStyle = widget.value.on ? "#585" : "#333";
+                ctx.strokeStyle = isOn ? "#585" : "#333";
                 ctx.lineWidth = 1;
                 ctx.stroke();
 
                 // 开关 + LoRA名称 + 权重
                 const toggleX = x + 4;
                 const toggleSize = 12;
-                ctx.fillStyle = widget.value.on ? "#6a6" : "#555";
+                ctx.fillStyle = isOn ? "#6a6" : "#555";
                 ctx.beginPath();
                 ctx.roundRect(toggleX, midY - toggleSize/2, toggleSize, toggleSize, 2);
                 ctx.fill();
                 
-                if (widget.value.on) {
+                if (isOn) {
                     ctx.fillStyle = "#fff";
                     ctx.font = "bold 9px Arial";
                     ctx.textAlign = "center";
@@ -651,7 +655,7 @@ app.registerExtension({
                 }
                 const name = widget.value.lora?.split(/[\/\\]/).pop() || "None";
                 const nameX = toggleX + toggleSize + 6;
-                ctx.fillStyle = widget.value.on ? "#ddd" : "#777";
+                ctx.fillStyle = isOn ? "#ddd" : "#777";
                 ctx.font = "11px Arial";
                 ctx.textAlign = "left";
                 ctx.textBaseline = "middle";
@@ -664,7 +668,8 @@ app.registerExtension({
                 }
                 ctx.fillText(truncatedName, nameX, midY);
 
-                const strengthStr = widget.value.strength.toFixed(2);
+                const strength = widget.value.strength ?? 1.0;
+                const strengthStr = strength.toFixed(2);
                 ctx.textAlign = "right";
                 ctx.fillStyle = "#999";
                 ctx.fillText(strengthStr, width + x - 4, midY);
@@ -673,6 +678,18 @@ app.registerExtension({
             widget.mouse = (event, pos, node) => {
                 const localX = pos[0];
                 const margin = 10;
+                
+                if (event.type === "wheel" || event.type === "mousewheel") {
+                    const delta = event.deltaY ? -Math.sign(event.deltaY) * 0.05 : (event.wheelDelta ? Math.sign(event.wheelDelta) * 0.05 : 0);
+                    if (delta !== 0) {
+                        let newStrength = (widget.value.strength ?? 1.0) + delta;
+                        newStrength = Math.round(newStrength * 100) / 100;
+                        widget.value.strength = newStrength;
+                        widget.value.triggerWeight = newStrength;
+                        node.setDirtyCanvas(true, true);
+                    }
+                    return true;
+                }
                 
                 // 权重区域拖拽处理
                 if (event.type === "pointermove") {
@@ -683,7 +700,9 @@ app.registerExtension({
                         }
                         if (widget._hasMoved) {
                             const newStrength = widget._dragStartStrength + deltaX * 0.01;
-                            widget.value.strength = Math.round(newStrength * 100) / 100;
+                            const val = Math.round(newStrength * 100) / 100;
+                            widget.value.strength = val;
+                            widget.value.triggerWeight = val;
                             node.setDirtyCanvas(true, true);
                         }
                         return true;
@@ -706,6 +725,7 @@ app.registerExtension({
                                 const parsed = parseFloat(v);
                                 if (!isNaN(parsed)) {
                                     widget.value.strength = parsed;
+                                    widget.value.triggerWeight = parsed;
                                     node.setDirtyCanvas(true, true);
                                 }
                             }, event);
@@ -728,6 +748,19 @@ app.registerExtension({
                         showLoraChooserDialog(event, values => {
                             if (values && values.length > 0) {
                                 widget.value.lora = values[0];
+                                if (values[0] && values[0] !== "None") {
+                                    api.fetchApi(`/xbhh/lora/trigger?name=${encodeURIComponent(values[0])}`)
+                                        .then(r => r.json())
+                                        .then(data => {
+                                            if (data && data.active_trigger !== undefined) {
+                                                widget.value.trigger = data.active_trigger;
+                                                node.setDirtyCanvas(true, true);
+                                            }
+                                        })
+                                        .catch(e => console.error("Error fetching trigger word:", e));
+                                } else {
+                                    widget.value.trigger = "";
+                                }
                                 node.setDirtyCanvas(true, true);
                             }
                         });
@@ -823,6 +856,223 @@ app.registerExtension({
             configure?.apply(this, arguments);
         };
 
+// 弹出预设多选组合与在线修改弹窗
+async function openLoraPresetComboDialog(node, widget) {
+    const loraName = widget.value.lora;
+    if (!loraName) return;
+
+    let dbProfiles = [];
+    let dbActiveTrigger = "";
+
+    try {
+        const [resProfiles, resTrigger] = await Promise.all([
+            api.fetchApi(`/xbhh/lora/profiles?name=${encodeURIComponent(loraName)}`),
+            api.fetchApi(`/xbhh/lora/trigger?name=${encodeURIComponent(loraName)}`)
+        ]);
+        const dataProfiles = await resProfiles.json();
+        dbProfiles = dataProfiles.profiles || [];
+
+        const dataTrigger = await resTrigger.json();
+        if (dataTrigger && dataTrigger.active_trigger !== undefined) {
+            dbActiveTrigger = dataTrigger.active_trigger || "";
+        }
+    } catch (e) {
+        console.error("Error fetching profiles or trigger:", e);
+    }
+
+    // 若 widget 内存中的触发词为空，且数据库中有有效触发词，自动从数据库同步
+    let currentTrigger = widget.value.trigger;
+    if (!currentTrigger && dbActiveTrigger) {
+        currentTrigger = dbActiveTrigger;
+        widget.value.trigger = dbActiveTrigger;
+    }
+    if (currentTrigger === undefined || currentTrigger === null) {
+        currentTrigger = "";
+    }
+
+    // 如果没有任何预设，走常规单行 Prompt 输入
+    if (dbProfiles.length === 0) {
+        app.canvas.prompt("触发词", currentTrigger, v => {
+            if (v !== null && v !== undefined) {
+                widget.value.trigger = v;
+                node.setDirtyCanvas(true, true);
+                api.fetchApi("/xbhh/lora/trigger/update", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name: loraName, trigger: v })
+                }).catch(err => console.error("Error saving trigger:", err));
+            }
+        });
+        return;
+    }
+
+    // 如果存在预设，显示多选组合与在线修改弹窗
+    let modalOverlay = document.getElementById("xbhh-preset-combo-modal");
+    if (modalOverlay) modalOverlay.remove();
+
+    modalOverlay = document.createElement("div");
+    modalOverlay.id = "xbhh-preset-combo-modal";
+    modalOverlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(0, 0, 0, 0.75); z-index: 10000;
+        display: flex; align-items: center; justify-content: center;
+        font-family: system-ui, -apple-system, sans-serif; color: #fff;
+    `;
+
+    const dialog = document.createElement("div");
+    dialog.style.cssText = `
+        background: #1e1e24; border: 1px solid #3a3a4c; border-radius: 12px;
+        width: 540px; max-height: 85vh; display: flex; flex-direction: column;
+        padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    `;
+
+    let profilesCopy = JSON.parse(JSON.stringify(dbProfiles));
+    profilesCopy.forEach(p => { if (p.enabled === undefined) p.enabled = true; });
+
+    const updatePreview = () => {
+        const combined = profilesCopy
+            .filter(p => p.enabled && p.trigger && p.trigger.trim())
+            .map(p => p.trigger.trim())
+            .join(", ");
+        previewBox.value = combined;
+    };
+
+    const headerContainer = document.createElement("div");
+    headerContainer.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;";
+
+    const titleEl = document.createElement("h3");
+    titleEl.style.cssText = "margin:0; font-size:15px; color:#8ab4f8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:380px;";
+    titleEl.innerText = `📦 预设组合与编辑: ${loraName.split('/').pop()}`;
+
+    const addBtn = document.createElement("button");
+    addBtn.innerText = "➕ 添加预设";
+    addBtn.style.cssText = "background:rgba(45,120,245,0.25); border:1px solid rgba(45,120,245,0.5); color:#9cd2f8; padding:4px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:bold;";
+
+    headerContainer.appendChild(titleEl);
+    headerContainer.appendChild(addBtn);
+    dialog.appendChild(headerContainer);
+
+    const listContainer = document.createElement("div");
+    listContainer.style.cssText = "flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:10px; max-height:45vh; padding-right:4px; margin-bottom:15px;";
+
+    const renderList = () => {
+        listContainer.innerHTML = "";
+        profilesCopy.forEach((prof, idx) => {
+            const item = document.createElement("div");
+            item.style.cssText = "background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px 10px; display:flex; flex-direction:column; gap:6px;";
+
+            const topRow = document.createElement("div");
+            topRow.style.cssText = "display:flex; align-items:center; gap:8px;";
+
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.checked = !!prof.enabled;
+            cb.style.cssText = "width:16px; height:16px; cursor:pointer; accent-color:#2d78f5;";
+            cb.onchange = () => { prof.enabled = cb.checked; updatePreview(); };
+
+            const nameInp = document.createElement("input");
+            nameInp.type = "text";
+            nameInp.value = prof.name || `预设 ${idx + 1}`;
+            nameInp.style.cssText = "flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:4px; color:#9cd2f8; padding:3px 8px; font-size:12px; font-weight:bold;";
+            nameInp.onchange = () => { prof.name = nameInp.value.trim(); };
+
+            const delBtn = document.createElement("button");
+            delBtn.innerText = "🗑️";
+            delBtn.style.cssText = "background:rgba(255,80,80,0.2); border:1px solid rgba(255,80,80,0.4); color:#ff8888; border-radius:4px; padding:2px 6px; font-size:11px; cursor:pointer;";
+            delBtn.onclick = () => {
+                profilesCopy.splice(idx, 1);
+                renderList();
+                updatePreview();
+            };
+
+            topRow.appendChild(cb);
+            topRow.appendChild(nameInp);
+            topRow.appendChild(delBtn);
+
+            const txt = document.createElement("textarea");
+            txt.value = prof.trigger || "";
+            txt.placeholder = "输入提示词 (逗号分隔)...";
+            txt.style.cssText = "width:100%; height:42px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:4px; color:#fff; font-size:11px; padding:4px; box-sizing:border-box;";
+            txt.oninput = () => { prof.trigger = txt.value; updatePreview(); };
+
+            item.appendChild(topRow);
+            item.appendChild(txt);
+            listContainer.appendChild(item);
+        });
+    };
+
+    dialog.appendChild(listContainer);
+
+    const previewHeader = document.createElement("div");
+    previewHeader.innerText = "⚡ 组合后的最终生效提示词预览：";
+    previewHeader.style.cssText = "font-size:12px; color:#aaa; margin-bottom:4px;";
+
+    const previewBox = document.createElement("textarea");
+    previewBox.readOnly = true;
+    previewBox.style.cssText = "width:100%; height:48px; background:rgba(0,0,0,0.5); border:1px solid #3a5a4a; border-radius:6px; color:#7ef; font-size:11px; padding:6px; box-sizing:border-box; margin-bottom:15px;";
+
+    dialog.appendChild(previewHeader);
+    dialog.appendChild(previewBox);
+
+    const footer = document.createElement("div");
+    footer.style.cssText = "display:flex; justify-content:flex-end; gap:10px;";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.innerText = "取消";
+    cancelBtn.style.cssText = "background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#ccc; padding:6px 16px; border-radius:6px; font-size:12px; cursor:pointer;";
+    cancelBtn.onclick = () => modalOverlay.remove();
+
+    const saveBtn = document.createElement("button");
+    saveBtn.innerText = "💾 保存预设并应用";
+    saveBtn.style.cssText = "background:#2d78f5; border:none; color:#fff; padding:6px 20px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer;";
+
+    saveBtn.onclick = async () => {
+        saveBtn.innerText = "保存中...";
+        const finalTrigger = previewBox.value;
+
+        try {
+            await api.fetchApi("/xbhh/lora/profiles/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: loraName, profiles: profilesCopy })
+            });
+
+            await api.fetchApi("/xbhh/lora/trigger/update", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: loraName, trigger: finalTrigger })
+            });
+
+            widget.value.trigger = finalTrigger;
+            node.setDirtyCanvas(true, true);
+            modalOverlay.remove();
+        } catch (err) {
+            console.error("Error saving presets:", err);
+            alert("保存预设失败: " + err);
+        }
+    };
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+    dialog.appendChild(footer);
+    modalOverlay.appendChild(dialog);
+    document.body.appendChild(modalOverlay);
+
+    renderList();
+    updatePreview();
+
+    addBtn.onclick = () => {
+        profilesCopy.push({
+            id: "prof_" + Date.now(),
+            name: `预设 ${profilesCopy.length + 1}`,
+            trigger: "",
+            enabled: true
+        });
+        renderList();
+        updatePreview();
+    };
+}
+
         const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
         nodeType.prototype.getExtraMenuOptions = function(_, options) {
             getExtraMenuOptions?.apply(this, arguments);
@@ -837,21 +1087,7 @@ app.registerExtension({
                         { content: w.value.on ? "⚫ 禁用" : "🟢 启用", callback: () => { w.value.on = !w.value.on; this.setDirtyCanvas(true, true); } },
                         { 
                             content: "✏️ 设置触发词", 
-                            callback: () => {
-                                app.canvas.prompt("触发词", w.value.trigger || "", v => {
-                                    w.value.trigger = v;
-                                    this.setDirtyCanvas(true, true);
-                                    
-                                    // Save custom trigger word to SQLite database
-                                    if (w.value.lora) {
-                                        api.fetchApi("/xbhh/lora/trigger/update", {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ name: w.value.lora, trigger: v })
-                                        }).catch(err => console.error("Error saving trigger word to DB:", err));
-                                    }
-                                });
-                            }
+                            callback: () => openLoraPresetComboDialog(this, w)
                         },
                         { 
                             content: "⚖️ 设置触发词权重", 
@@ -900,6 +1136,26 @@ app.registerExtension({
         nodeType.prototype.onMouseLeave = function() {
             hidePreview();
             onMouseLeave?.apply(this, arguments);
+        };
+        
+        const onWheel = nodeType.prototype.onWheel;
+        nodeType.prototype.onWheel = function(event, pos) {
+            const res = onWheel?.apply(this, arguments);
+            const localY = pos[1];
+            for (const w of this.loraWidgets || []) {
+                if (w.last_y && localY >= w.last_y && localY < w.last_y + 24) {
+                    const delta = event.deltaY ? -Math.sign(event.deltaY) * 0.05 : (event.wheelDelta ? Math.sign(event.wheelDelta) * 0.05 : 0);
+                    if (delta !== 0) {
+                        let newStrength = (w.value.strength ?? 1.0) + delta;
+                        newStrength = Math.round(newStrength * 100) / 100;
+                        w.value.strength = newStrength;
+                        w.value.triggerWeight = newStrength;
+                        this.setDirtyCanvas(true, true);
+                    }
+                    return true;
+                }
+            }
+            return res;
         };
     }
 });
