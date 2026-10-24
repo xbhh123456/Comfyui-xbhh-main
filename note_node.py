@@ -33,5 +33,5 @@ NODE_CLASS_MAPPINGS = {
     "XBHHNoteNode": XBHHNoteNode
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "XBHHNoteNode": "xbhh 注释节点 📝"
+    "XBHHNoteNode": "xbhh 注释节点"
 }

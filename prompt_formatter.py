@@ -102,5 +102,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "XBHHPromptFormatter": "XBHH Prompt Formatter 📝"
+    "XBHHPromptFormatter": "XBHH Prompt Formatter"
 }

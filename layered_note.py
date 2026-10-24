@@ -30,5 +30,5 @@ NODE_CLASS_MAPPINGS = {
     "XBHHLayeredNote": XBHHLayeredNote
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "XBHHLayeredNote": "xbhh 分层注释 📑"
+    "XBHHLayeredNote": "xbhh 分层注释"
 }

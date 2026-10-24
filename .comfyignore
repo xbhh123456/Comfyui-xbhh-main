@@ -4,4 +4,3 @@ tests/
 *.psd
 .vscode/
 *.db
-web/live2d/

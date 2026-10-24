@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>xbhh • LoRA 堆工作流查看器</title>
+  <link rel="icon" type="image/jpeg" href="/xbhh/lora/logo" />
+  <link rel="shortcut icon" href="/xbhh/lora/logo" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=PingFang+SC:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #100c19;
+      --bg-card: rgba(36, 26, 56, 0.42);
+      --bg-hover: rgba(62, 48, 88, 0.5);
+      --primary: #f3a6e9;
+      --primary-rgb: 243, 166, 233;
+      --primary-deep-rgb: 162, 82, 180;
+      --text-main: #f5e8f8;
+      --text-muted: #bcacc7;
+      --border: rgba(235, 140, 215, 0.22);
+      --border-hover: rgba(var(--primary-rgb), 0.55);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', 'PingFang SC', -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+      background:
+        radial-gradient(1100px 600px at 15% -10%, rgba(var(--primary-deep-rgb), 0.28), transparent 60%),
+        radial-gradient(900px 500px at 95% 10%, rgba(var(--primary-rgb), 0.12), transparent 55%),
+        var(--bg-base);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding-bottom: 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 28px 10px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-main);
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      border-color: var(--border-hover);
+      background: var(--bg-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .wrap {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    #uploadArea {
+      margin-top: 8px;
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 56px 20px;
+      text-align: center;
+      transition: all 0.25s ease;
+    }
+
+    #uploadArea:hover {
+      border-color: var(--border-hover);
+      background: rgba(62, 48, 88, 0.3);
+    }
+
+    #uploadArea.dragover {
+      border-color: var(--primary);
+      background: rgba(var(--primary-rgb), 0.12);
+    }
+
+    #uploadArea .icon {
+      font-size: 38px;
+      margin-bottom: 10px;
+    }
+
+    #uploadArea .txt {
+      font-size: 15px;
+    }
+
+    #uploadArea .hint {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    #resultSection {
+      display: none;
+      margin-top: 14px;
+    }
+
+    #resultSection.show {
+      display: block;
+    }
+
+    .file-line {
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .file-line b {
+      color: var(--text-main);
+    }
+
+    .node-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .node-head {
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(235, 140, 215, 0.1);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .node-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .node-id {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+
+    .badge {
+      background: rgba(var(--primary-rgb), 0.15);
+      border: 1px solid var(--border);
+      color: var(--primary);
+      padding: 3px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    .lora-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .lora-table tr {
+      border-bottom: 1px solid rgba(235, 140, 215, 0.08);
+    }
+
+    .lora-table tr:last-child {
+      border-bottom: none;
+    }
+
+    .lora-table td {
+      padding: 10px 18px;
+      vertical-align: middle;
+    }
+
+    .lora-name {
+      font-size: 14px;
+      font-weight: 500;
+      word-break: break-all;
+    }
+
+    .lora-path {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+      word-break: break-all;
+    }
+
+    .strength-badge {
+      display: inline-block;
+      background: rgba(156, 210, 248, 0.12);
+      border: 1px solid rgba(156, 210, 248, 0.25);
+      color: #9cd2f8;
+      border-radius: 999px;
+      font-size: 12px;
+      padding: 3px 10px;
+      margin-left: 6px;
+      white-space: nowrap;
+    }
+
+    tr.off .lora-name,
+    tr.off .lora-path,
+    tr.off .strength-badge {
+      opacity: 0.4;
+    }
+
+    .off-chip {
+      color: var(--text-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .empty-tip {
+      text-align: center;
+      padding: 44px 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+      border: 1px dashed var(--border);
+      border-radius: 16px;
+    }
+
+    #toast {
+      position: fixed;
+      left: 50%;
+      bottom: 36px;
+      transform: translateX(-50%) translateY(16px);
+      background: rgba(30, 22, 48, 0.92);
+      border: 1px solid var(--border-hover);
+      color: var(--text-main);
+      padding: 10px 22px;
+      border-radius: 999px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      z-index: 999;
+      max-width: 70vw;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    #toast.bad {
+      border-color: rgba(247, 118, 142, 0.6);
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="brand">🧬 LoRA 堆查看器</div>
+    <div class="top-actions">
+      <button class="btn" id="btnCopyAll" disabled>📋 复制全部</button>
+      <button class="btn" id="btnReset" disabled>↺ 重新选择</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="uploadArea">
+      <div class="icon">🖼️</div>
+      <div class="txt">点击 / 拖入 / Ctrl+V 粘贴 工作流 PNG</div>
+      <div class="hint">也支持 .json 工作流文件 · 纯本地解析</div>
+      <input type="file" id="fileInput" accept="image/png,.json,application/json">
+    </section>
+
+    <section id="resultSection">
+      <div class="file-line" id="fileLine"></div>
+      <div id="heapContainer"></div>
+    </section>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    const S = {
+      fileName: '',
+      source: '',
+      apiData: null,
+      uiData: null,
+      heapNodes: []
+    };
+
+    const $ = id => document.getElementById(id);
+    const uploadArea = $('uploadArea'), fileInput = $('fileInput'), resultSection = $('resultSection'),
+      heapContainer = $('heapContainer'), fileLine = $('fileLine');
+
+    // ---------- 工具 ----------
+    function num(v, dflt) {
+      const n = typeof v === 'string' ? parseFloat(v) : v;
+      return (typeof n === 'number' && isFinite(n)) ? n : dflt;
+    }
+    function fmt(n) {
+      return (typeof n === 'number') ? String(Math.round(n * 1000) / 1000) : String(n);
+    }
+    function stripExt(s) {
+      return String(s).replace(/\.safetensors$/i, '');
+    }
+    function esc(t) {
+      const div = document.createElement('div');
+      div.textContent = t == null ? '' : String(t);
+      return div.innerHTML;
+    }
+
+    let toastTimer = null;
+    function toast(msg, bad) {
+      const el = $('toast');
+      el.textContent = msg;
+      el.classList.toggle('bad', !!bad);
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+    }
+
+    function copyText(text, tip) {
+      const done = () => toast(tip || '已复制');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+      } else {
+        fallbackCopy(text, done);
+      }
+    }
+    function fallbackCopy(text, done) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('复制失败', true); }
+      document.body.removeChild(ta);
+    }
+
+    // ---------- 文件入口 ----------
+    uploadArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length > 0) handleFile(e.target.files[0]);
+      e.target.value = '';
+    });
+    uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+    uploadArea.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+    });
+    document.addEventListener('paste', e => {
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      for (const it of items) {
+        if (it.type && it.type.startsWith('image/')) {
+          const f = it.getAsFile();
+          if (f) { handleFile(f); e.preventDefault(); return; }
+        }
+      }
+    });
+
+    $('btnReset').addEventListener('click', () => {
+      resultSection.classList.remove('show');
+      uploadArea.style.display = '';
+      ['btnCopyAll', 'btnReset'].forEach(id => $(id).disabled = true);
+      fileLine.innerHTML = '';
+    });
+
+    function handleFile(file) {
+      const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
+      const isJson = /\.json$/i.test(file.name) || file.type === 'application/json';
+      if (!isPng && !isJson) {
+        toast('请提供 PNG 工作流图片或 .json 工作流文件', true);
+        return;
+      }
+      S.fileName = file.name;
+      if (isJson) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try { handleParsedMeta(parseJsonWorkflow(e.target.result)); }
+          catch (err) { toast('JSON 解析失败：' + err.message, true); }
+        };
+        reader.readAsText(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try {
+            handleParsedMeta(extractPNGMetadata(new Uint8Array(e.target.result)));
+          } catch (err) {
+            toast('解析失败：' + err.message, true);
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    }
+
+    function parseJsonWorkflow(text) {
+      const j = JSON.parse(text);
+      if (j && typeof j === 'object' && !Array.isArray(j)) {
+        if (Array.isArray(j.nodes)) return { workflow: text };                       // UI 格式
+        const vals = Object.values(j);
+        if (vals.length && vals.every(v => v && typeof v === 'object' && 'class_type' in v)) {
+          return { prompt: text };                                                   // API 格式
+        }
+        if (j.prompt && typeof j.prompt === 'object') return { prompt: JSON.stringify(j.prompt) };
+      }
+      throw new Error('不是 ComfyUI 工作流 JSON');
+    }
+
+    function extractPNGMetadata(u8) {
+      const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+      for (let i = 0; i < 8; i++) {
+        if (u8[i] !== sig[i]) throw new Error('不是有效的 PNG 文件');
+      }
+      const meta = {};
+      let off = 8;
+      const dec = new TextDecoder();
+      while (off + 8 <= u8.length) {
+        const len = (u8[off] << 24) | (u8[off + 1] << 16) | (u8[off + 2] << 8) | u8[off + 3];
+        const type = String.fromCharCode(u8[off + 4], u8[off + 5], u8[off + 6], u8[off + 7]);
+        if (type === 'tEXt') {
+          const data = u8.subarray(off + 8, off + 8 + len);
+          let z = 0;
+          while (z < data.length && data[z] !== 0) z++;
+          meta[dec.decode(data.subarray(0, z))] = dec.decode(data.subarray(z + 1));
+        }
+        if (type === 'IEND') break;
+        off += 12 + len;
+      }
+      if (!meta.prompt && !meta.workflow) throw new Error('图片中没有工作流元数据（可能被截图/压缩破坏）');
+      return meta;
+    }
+
+    // ---------- 主流程 ----------
+    function handleParsedMeta(meta) {
+      let apiData = null, uiData = null;
+      try { if (meta.prompt) apiData = JSON.parse(meta.prompt); } catch (e) { }
+      try { if (meta.workflow) uiData = JSON.parse(meta.workflow); } catch (e) { }
+
+      if (apiData && typeof apiData === 'object' && Object.keys(apiData).length) {
+        S.source = 'prompt'; S.apiData = apiData; S.uiData = null;
+      } else if (uiData && Array.isArray(uiData.nodes)) {
+        S.source = 'workflow'; S.apiData = null; S.uiData = uiData;
+      } else {
+        toast('图片中未找到工作流数据', true);
+        return;
+      }
+
+      buildHeapNodes();
+      renderAll();
+    }
+
+    function isLoraClass(t) { return /lora/i.test(String(t || '')); }
+
+    function extractSlots(classType, inputs) {
+      const slots = [];
+      const loraCls = isLoraClass(classType);
+      for (const [k, v] of Object.entries(inputs || {})) {
+        // XBHH 堆槽位：{on, lora, strength, strengthTwo}
+        if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.lora === 'string') {
+          if (!v.lora || v.lora === 'None') continue;
+          slots.push({
+            key: k, on: v.on !== false, lora: v.lora,
+            strength: num(v.strength, 1), strengthTwo: num(v.strengthTwo, null)
+          });
+        } else if (loraCls && k === 'lora_name' && typeof v === 'string') {
+          if (!v || v === 'None') continue;
+          slots.push({
+            key: k, on: true, lora: v,
+            strength: num(inputs.strength_model != null ? inputs.strength_model : inputs.strength, 1),
+            strengthTwo: num(inputs.strength_clip, null)
+          });
+        } else if (/^lora_\d+$/.test(k) && typeof v === 'string') {
+          if (!v || v === 'None') continue;
+          const n = k.slice(5);
+          slots.push({
+            key: k, on: true, lora: v,
+            strength: num(inputs['strength_' + n] != null ? inputs['strength_' + n] : inputs['strength_' + n + '_model'], 1),
+            strengthTwo: num(inputs['strengthTwo_' + n] != null ? inputs['strengthTwo_' + n] : inputs['strength_' + n + '_clip'], null)
+          });
+        }
+      }
+      return slots;
+    }
+
+    function buildHeapNodes() {
+      const out = [];
+      const pushNode = (id, classType, title, slots) => {
+        if (slots.length) out.push({ id, classType, title: title || '', slots });
+      };
+
+      if (S.source === 'prompt') {
+        const wfNodes = (S.uiData && S.uiData.nodes) || [];
+        const titleOf = id => {
+          const n = wfNodes.find(x => String(x.id) === String(id));
+          return n ? (n._meta && n._meta.title) || n.title || '' : '';
+        };
+        for (const [id, node] of Object.entries(S.apiData)) {
+          pushNode(id, node.class_type || 'Unknown', titleOf(id), extractSlots(node.class_type, node.inputs));
+        }
+      } else {
+        for (const n of (S.uiData.nodes || [])) {
+          const wv = n.widgets_values;
+          const slots = [];
+          if (Array.isArray(wv)) {
+            const objs = wv.filter(v => v && typeof v === 'object' && typeof v.lora === 'string' && v.lora !== 'None');
+            if (objs.length) {
+              objs.forEach((v, i) => slots.push({
+                key: 'slot_' + (i + 1), on: v.on !== false, lora: v.lora,
+                strength: num(v.strength, 1), strengthTwo: num(v.strengthTwo, null)
+              }));
+            } else if (isLoraClass(n.type) && typeof wv[0] === 'string' && wv[0] && wv[0] !== 'None') {
+              slots.push({ key: 'lora_name', on: true, lora: wv[0], strength: num(wv[1], 1), strengthTwo: num(wv[2], null) });
+            }
+          }
+          pushNode(String(n.id), n.type || '', n.title || '', slots);
+        }
+      }
+      out.sort((a, b) => {
+        const ax = a.classType.toLowerCase().includes('xbhh') ? 0 : 1;
+        const bx = b.classType.toLowerCase().includes('xbhh') ? 0 : 1;
+        return ax - bx || b.slots.length - a.slots.length;
+      });
+      S.heapNodes = out;
+    }
+
+    // ---------- 渲染 ----------
+    function renderAll() {
+      resultSection.classList.add('show');
+      uploadArea.style.display = 'none';
+      $('btnReset').disabled = false;
+      $('btnCopyAll').disabled = !S.heapNodes.length;
+
+      const total = S.heapNodes.reduce((a, n) => a + n.slots.length, 0);
+      fileLine.innerHTML = `<b>${esc(S.fileName)}</b> · ${total} 个 LoRA`;
+
+      if (!S.heapNodes.length) {
+        heapContainer.innerHTML = `<div class="empty-tip">这个工作流里没有找到 LoRA</div>`;
+        return;
+      }
+      heapContainer.innerHTML = S.heapNodes.map(n => `
+        <div class="node-card">
+          <div class="node-head">
+            <div class="node-title">${esc(n.title || n.classType)}<span class="node-id">#${esc(n.id)} · ${esc(n.classType)}</span></div>
+            <span class="badge">${n.slots.length} 个 LoRA</span>
+          </div>
+          <table class="lora-table">
+            ${n.slots.map(s => {
+              const clip = s.strengthTwo != null ? s.strengthTwo : s.strength;
+              return `
+              <tr class="${s.on ? '' : 'off'}">
+                <td>
+                  <div class="lora-name">${esc(stripExt(s.lora))}</div>
+                  <div class="lora-path">${esc(s.lora)}</div>
+                </td>
+                <td style="white-space:nowrap">
+                  <span class="strength-badge">模型 ${fmt(s.strength)}</span>
+                  <span class="strength-badge">CLIP ${fmt(clip)}</span>
+                </td>
+                <td style="white-space:nowrap;text-align:right">
+                  ${s.on ? '' : '<span class="off-chip">已关闭</span>'}
+                </td>
+              </tr>`;
+            }).join('')}
+          </table>
+        </div>
+      `).join('');
+    }
+
+    // 复制为 XBHH 预设格式：启用|名称|模型强度|CLIP强度
+    $('btnCopyAll').addEventListener('click', () => {
+      if (!S.heapNodes.length) return;
+      const lines = [];
+      for (const n of S.heapNodes) {
+        for (const s of n.slots) {
+          const clip = s.strengthTwo != null ? s.strengthTwo : s.strength;
+          lines.push(`${s.on ? 1 : 0}|${s.lora}|${fmt(s.strength)}|${fmt(clip)}`);
+        }
+      }
+      copyText(lines.join('\n'), '已复制（格式：启用|名称|模型|CLIP）');
+    });
+  </script>
+</body>
+
+</html>

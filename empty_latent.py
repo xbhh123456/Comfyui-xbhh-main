@@ -2,6 +2,7 @@ import torch
 
 # 预设分辨率列表
 RESOLUTION_PRESETS = {
+    "自定义": (0, 0),  # 特殊标记，使用自定义宽高（置顶方便快速选择）
     "512x512 (1:1)": (512, 512),
     "768x768 (1:1)": (768, 768),
     "1024x1024 (1:1)": (1024, 1024),
@@ -17,7 +18,6 @@ RESOLUTION_PRESETS = {
     "1152x896 (SDXL)": (1152, 896),
     "768x1344 (2:3)": (768, 1344),
     "1344x768 (3:2)": (1344, 768),
-    "自定义": (0, 0),  # 特殊标记，使用自定义宽高
 }
 
 class XBHHEmptyLatent:
@@ -72,5 +72,5 @@ NODE_CLASS_MAPPINGS = {
     "XBHHEmptyLatent": XBHHEmptyLatent
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "XBHHEmptyLatent": "xbhh 空Latent 📐"
+    "XBHHEmptyLatent": "xbhh 空Latent"
 }

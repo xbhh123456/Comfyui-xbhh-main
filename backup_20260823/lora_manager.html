@@ -1,0 +1,4048 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>xbhh • LoRA 模型全景控制台</title>
+  <!-- Logo / Favicon -->
+  <link rel="icon" type="image/jpeg" href="/xbhh/lora/logo" />
+  <link rel="shortcut icon" href="/xbhh/lora/logo" />
+  <!-- Google Fonts Outfit & PingFang -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=PingFang+SC:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #100c19;
+      --bg-panel: rgba(24, 18, 38, 0.45);
+      --bg-card: rgba(36, 26, 56, 0.42);
+      --bg-hover: rgba(62, 48, 88, 0.5);
+      --primary: #f3a6e9;
+      --primary-accent: #e2b4d8;
+      --primary-gradient: linear-gradient(135deg, #f3a6e9 0%, #c462c9 50%, #87389f 100%);
+      --pill-active-bg: linear-gradient(135deg, rgba(243, 166, 233, 0.35), rgba(162, 82, 180, 0.45));
+      --text-main: #f5e8f8;
+      --text-muted: #bcacc7;
+      --border: rgba(235, 140, 215, 0.22);
+      --border-hover: rgba(243, 166, 233, 0.55);
+      --accent-blue: #9cd2f8;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    /* 自定义二次元发光光标 (Melodify Style Cursor) */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="4" fill="%23f3a6e9" opacity="0.95"/><circle cx="10" cy="10" r="8" fill="none" stroke="%23f3a6e9" stroke-width="1.5" opacity="0.4"/></svg>') 10 10, auto;
+    }
+
+    button,
+    a,
+    select,
+    input,
+    .folder-item,
+    .lora-card,
+    .menu-item {
+      cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5" fill="%23e2b4d8" opacity="1"/><circle cx="10" cy="10" r="9" fill="none" stroke="%23e2b4d8" stroke-width="2" opacity="0.6"/></svg>') 10 10, pointer !important;
+    }
+
+    /* 光标跟随环 */
+    #cursor-follower {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 26px;
+      height: 26px;
+      border: 1.5px solid rgba(243, 166, 233, 0.6);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 99999;
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease-out, width 0.2s, height 0.2s, border-color 0.2s;
+      box-shadow: 0 0 10px rgba(243, 166, 233, 0.3);
+    }
+
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: "Outfit", "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 滚动条美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(20, 16, 30, 0.5);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(226, 180, 216, 0.25);
+      border-radius: 6px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(243, 166, 233, 0.5);
+    }
+
+    /* 1. 顶栏横向铺满 (Full-width Topbar from Demo) */
+    #topbar {
+      width: 100%;
+      height: 60px;
+      background: rgba(22, 16, 34, 0.65);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      flex-shrink: 0;
+    }
+
+    .brand-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+    }
+
+    #brand-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      object-fit: cover;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      flex-shrink: 0;
+      transition: transform 0.2s ease;
+    }
+    #brand-logo:hover {
+      transform: scale(1.08) rotate(-3deg);
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, #f3a6e9 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-tag {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(243, 166, 233, 0.15);
+      border: 1px solid rgba(243, 166, 233, 0.3);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* 顶栏集成的搜索与操作按钮 */
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+    }
+
+    /* 2. 下面部分拆成左右 (Left Directory Tree & Right LoRA View) */
+    #app-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+      padding: 12px;
+      gap: 12px;
+    }
+
+    /* 左侧面板 */
+    #sidebar {
+      width: 280px;
+      min-width: 200px;
+      max-width: 450px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    #sidebar>div:first-child {
+      padding: 14px 16px !important;
+      font-weight: 600 !important;
+      font-size: 13px !important;
+      border-bottom: 1px solid var(--border) !important;
+      background: rgba(42, 32, 60, 0.5) !important;
+      color: var(--primary) !important;
+    }
+
+    #folder-tree {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .folder-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+      user-select: none;
+      border: 1px solid transparent;
+    }
+
+    .folder-item:hover {
+      background: var(--bg-hover);
+      color: #fff;
+      transform: translateX(2px);
+    }
+
+    .folder-item.active {
+      background: var(--pill-active-bg);
+      border: 1px solid var(--border-hover);
+      border-left: 3px solid var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .folder-icon {
+      color: var(--primary);
+      font-size: 16px;
+    }
+
+    /* 左下角一言卡片 */
+    #hitokoto-box {
+      height: 30%;
+      min-height: 150px;
+      border-top: 1px solid var(--border);
+      padding: 12px 14px;
+      overflow-y: auto;
+      background: rgba(22, 17, 34, 0.6);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #hitokoto-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    #hitokoto-title {
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 12px;
+    }
+    #hitokoto-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .hk-btn {
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 4px;
+      padding: 3px 7px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .hk-btn:hover {
+      color: var(--primary);
+      border-color: var(--primary);
+      background: rgba(139,180,248,0.08);
+    }
+    #hitokoto-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 6px;
+    }
+    #hitokoto-content {
+      color: var(--text-main);
+      font-size: 13px;
+      line-height: 1.65;
+      word-break: break-word;
+    }
+    #hitokoto-from {
+      text-align: right;
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.8;
+    }
+    #hitokoto-source {
+      font-size: 10px;
+      color: var(--text-muted);
+      opacity: 0.55;
+      text-align: right;
+      border-top: 1px dashed rgba(255,255,255,0.06);
+      padding-top: 6px;
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* 一言设置弹窗 - 分类标签 */
+    .hk-cat-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--text-main);
+      background: rgba(16,12,24,0.6);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    .hk-cat-label:hover {
+      border-color: var(--primary);
+    }
+    .hk-cat-label input {
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    /* 右侧面板 */
+    #main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+    }
+
+    /* 工具栏 */
+    #toolbar {
+      height: 60px;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(22, 16, 34, 0.75);
+      backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .search-box {
+      padding: 7px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: rgba(18, 14, 28, 0.8);
+      color: var(--text-main);
+      width: 240px;
+      outline: none;
+      font-size: 12px;
+      transition: all 0.25s ease;
+    }
+
+    .search-box:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(243, 166, 233, 0.3);
+    }
+
+    .view-toggles {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn {
+      background: rgba(45, 34, 66, 0.7);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 0 14px;
+      height: 34px;
+      border-radius: 20px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.25s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn:hover:not(.active):not(.btn-off) {
+      background: var(--bg-hover);
+      border-color: var(--primary);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(243, 166, 233, 0.2);
+    }
+
+    .btn.active {
+      background: var(--primary-gradient);
+      color: #fff;
+      border-color: transparent;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(243, 166, 233, 0.35);
+    }
+
+    .btn.btn-off {
+      background: rgba(255, 152, 0, 0.18);
+      color: #ffca28;
+      border-color: rgba(255, 152, 0, 0.4);
+    }
+
+    /* 列选择器下拉窗 Popover (定位在工具栏按钮下方) */
+    #column-selector {
+      position: absolute;
+      right: 20px;
+      top: 54px;
+      background: rgba(30, 23, 44, 0.98);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+
+    #column-selector label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      margin-bottom: 0;
+    }
+
+    #column-selector label:hover {
+      color: var(--primary);
+    }
+
+    #column-selector input[type="checkbox"] {
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    /* 内容区 */
+    #content-area {
+      flex: 1;
+      overflow: auto;
+      padding: 0 20px 70px 20px;
+      position: relative;
+    }
+
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: block;
+      color: var(--primary);
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 10;
+    }
+
+    /* --- 列表视图 --- */
+    #list-view {
+      display: none;
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    #list-view th,
+    #list-view td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 260px;
+      font-size: 12px;
+    }
+
+    #list-view th {
+      position: sticky;
+      top: 0;
+      background: #1b132a;
+      backdrop-filter: blur(16px);
+      z-index: 100;
+      font-weight: 600;
+      color: var(--primary);
+      border-bottom: 1.5px solid var(--border);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .th-resizer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      min-width: 50px;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    .resize-handle {
+      width: 6px;
+      height: 100%;
+      cursor: col-resize;
+      position: absolute;
+      right: -10px;
+      top: 0;
+      z-index: 2;
+      background: transparent;
+    }
+
+    .resize-handle:hover,
+    .resize-handle.resizing {
+      background: var(--primary);
+    }
+
+    #list-view tbody tr {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #list-view tbody tr:hover {
+      background: rgba(243, 166, 233, 0.08);
+    }
+
+    #list-view tbody tr.has-user-trigger {
+      background: rgba(243, 166, 233, 0.12);
+    }
+
+    #list-view tbody tr.selected {
+      background: rgba(243, 166, 233, 0.22);
+    }
+
+    /* --- 图标视图 --- */
+    #icon-view {
+      padding-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 14px;
+      display: none;
+    }
+
+    .lora-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .lora-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px rgba(243, 166, 233, 0.2);
+      border-color: var(--primary);
+    }
+
+    .lora-card.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 14px rgba(243, 166, 233, 0.35);
+    }
+
+    .lora-card.has-user-trigger {
+      background: rgba(46, 34, 66, 0.85);
+      border-color: rgba(243, 166, 233, 0.45);
+    }
+
+    .user-trigger-badge {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      z-index: 4;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: var(--primary-gradient);
+      color: #fff;
+      font-weight: bold;
+      pointer-events: none;
+    }
+
+    .legend-bar {
+      display: flex;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 12px 20px 4px 20px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+    }
+
+    .lora-img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      background: rgba(15, 12, 22, 0.8);
+      display: block;
+    }
+
+    .lora-img-placeholder {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(25, 19, 36, 0.8);
+      color: rgba(243, 166, 233, 0.3);
+      font-size: 38px;
+    }
+
+    .lora-name {
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-main);
+    }
+
+    /* Checkboxes */
+    .card-checkbox {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      z-index: 5;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+
+    /* Batch Actions Toolbar */
+    #batch-toolbar {
+      position: absolute;
+      bottom: -70px;
+      left: 0;
+      right: 0;
+      height: 55px;
+      background: rgba(30, 22, 44, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.6);
+      transition: bottom 0.3s ease;
+      z-index: 90;
+    }
+
+    #batch-toolbar.show {
+      bottom: 0;
+    }
+
+    .batch-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    /* 右键菜单 */
+    #context-menu {
+      position: absolute;
+      background: rgba(32, 24, 46, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-md);
+      padding: 4px 0;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      z-index: 9999;
+      display: none;
+    }
+
+    .menu-item {
+      padding: 7px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+
+    .menu-item:hover {
+      background: var(--primary-gradient);
+      color: #fff;
+    }
+
+    /* 模态弹窗 (详情参数) */
+    #detail-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(14, 10, 22, 0.82);
+      backdrop-filter: blur(12px);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: rgba(30, 23, 44, 0.96);
+      border: 1px solid var(--primary);
+      width: 84%;
+      max-width: 1000px;
+      height: 82%;
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+    }
+
+    .modal-header {
+      padding: 14px 20px;
+      background: rgba(42, 32, 60, 0.8);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .close-btn {
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 22px;
+    }
+
+    .close-btn:hover {
+      color: var(--primary);
+    }
+
+    .modal-body {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      gap: 18px;
+    }
+
+    .param-section {
+      background: rgba(22, 17, 33, 0.6);
+      padding: 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .param-section h3 {
+      margin-top: 0;
+      font-size: 13px;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 6px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .param-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .param-key {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .param-val {
+      font-size: 12px;
+      color: var(--text-main);
+      background: rgba(16, 12, 24, 0.6);
+      padding: 4px 8px;
+      border-radius: 4px;
+      word-break: break-all;
+    }
+
+    /* Trigger Editor Section & Pill Badges */
+    .trigger-editor-section {
+      background: rgba(36, 26, 56, 0.55);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .trigger-input-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .trigger-textarea {
+      background: rgba(16, 12, 24, 0.8);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      resize: vertical;
+      font-size: 12px;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .trigger-textarea:focus {
+      border-color: var(--primary);
+    }
+
+    .editor-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .pill-group {
+      margin-top: 12px;
+    }
+
+    .pill-group-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .clickable-pill {
+      display: inline-block;
+      background: rgba(54, 38, 76, 0.65);
+      border: 1px solid var(--border);
+      padding: 4px 11px;
+      border-radius: 14px;
+      font-size: 11px;
+      color: var(--primary);
+      cursor: pointer;
+      margin-right: 6px;
+      margin-bottom: 6px;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .clickable-pill:hover {
+      background: var(--primary-gradient);
+      color: #fff;
+      border-color: transparent;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(243, 166, 233, 0.35);
+    }
+
+    .clickable-pill.civit {
+      background: rgba(30, 45, 75, 0.65);
+      border-color: rgba(156, 210, 248, 0.35);
+      color: var(--accent-blue);
+    }
+
+    .clickable-pill.civit:hover {
+      background: linear-gradient(135deg, #9cd2f8 0%, #4a90e2 100%);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 4px 12px rgba(156, 210, 248, 0.35);
+    }
+
+    .tag-freq-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-height: 180px;
+      overflow-y: auto;
+      padding-top: 4px;
+    }
+
+    .tag-pill {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(46, 32, 66, 0.6);
+      border: 1px solid var(--border);
+      padding: 3px 10px;
+      border-radius: 14px;
+      font-size: 11px;
+      color: var(--text-main);
+    }
+
+    .tag-count {
+      color: var(--primary);
+      background: rgba(16, 12, 24, 0.6);
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 6px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    /* Melodify Style Back To Top Button */
+    #back-to-top {
+      position: fixed;
+      right: 28px;
+      bottom: 28px;
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      background: rgba(26, 18, 42, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 12px rgba(243, 166, 233, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 999;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(16px) scale(0.9);
+      transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.25s ease,
+        box-shadow 0.25s ease;
+    }
+
+    #back-to-top.show {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0) scale(1);
+    }
+
+    #back-to-top:hover {
+      border-color: var(--primary);
+      transform: translateY(-3px) scale(1.05);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(243, 166, 233, 0.5);
+    }
+
+    #back-to-top:active {
+      transform: translateY(0) scale(0.95);
+    }
+
+    .progress-ring {
+      position: absolute;
+      inset: 0;
+      transform: rotate(-90deg);
+      pointer-events: none;
+    }
+
+    .progress-ring__circle {
+      transition: stroke-dashoffset 0.1s linear;
+    }
+
+    .back-to-top-icon {
+      font-size: 13px;
+      color: var(--primary);
+      transition: transform 0.25s ease, color 0.25s ease;
+      user-select: none;
+    }
+
+    #back-to-top:hover .back-to-top-icon {
+      color: #fff;
+      transform: translateY(-2px);
+    }
+
+    /* 批量操作进度条 Modal Overlay */
+    #batch-progress-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(14, 10, 22, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .batch-progress-panel {
+      width: min(480px, 90vw);
+      background: rgba(30, 23, 44, 0.98);
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+    }
+
+    .batch-progress-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: var(--primary);
+    }
+
+    .batch-progress-status {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      min-height: 20px;
+      word-break: break-all;
+    }
+
+    .batch-progress-bar-wrap {
+      height: 8px;
+      background: rgba(16, 12, 24, 0.8);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .batch-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--primary-gradient);
+      transition: width 0.2s ease;
+    }
+
+    .batch-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .toolbar-select-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-select {
+      padding: 0 12px;
+      font-size: 12px;
+      height: 34px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- 1. 顶栏横向位置铺满 (Full-width Topbar from Demo) -->
+  <header id="topbar">
+    <!-- 顶栏左侧：品牌标识 + 隐藏目录图标按钮 + 搜索框 -->
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div class="brand-box">
+        <img id="brand-logo" src="/xbhh/lora/logo" alt="Logo"
+          onerror="this.style.display='none'" />
+        <span class="brand-title">xbhh • LoRA Manager</span>
+        <span class="brand-tag">v2.0</span>
+      </div>
+
+      <!-- 隐藏目录按钮仅保留图标 ≡ (初始展开状态默认常亮) -->
+      <button class="btn active" id="btn-toggle-sidebar" title="折叠/展开左侧面板"
+        style="padding: 6px; width: 34px; height: 34px; justify-content: center; font-size: 16px; font-weight: bold;">≡</button>
+
+      <!-- 搜索框紧跟在左侧 -->
+      <input type="text" id="search-input" class="search-box" placeholder="🔍 输入名称或触发词搜索..." />
+    </div>
+
+    <!-- 顶栏右侧：规则过滤与工具按钮 -->
+    <div class="topbar-controls">
+      <select id="filter-rule-select" class="search-box"
+        style="width: auto; cursor: pointer; padding: 6px 12px; font-size: 12px;" title="按规则过滤 LoRA 视图">
+        <option value="all">🌐 全部 LoRA</option>
+        <option value="hide_custom">🙈 过滤已自定义</option>
+        <option value="only_custom">🎯 仅看已自定义</option>
+        <option value="no_trigger">⚠️ 无触发词</option>
+      </select>
+
+      <div class="toolbar-select-actions" id="select-actions" style="display: flex; gap: 6px;">
+        <button class="btn btn-select" id="btn-toggle-auto-trigger" title="点击开启或关闭自动提示词功能">⚡ 自动提示词：开启</button>
+        <button class="btn btn-select" id="btn-recalc-triggers" title="按训练标签最高频次重新计算自动触发词">🔄 重算高频词</button>
+        <button class="btn btn-select" id="btn-select-all">☑ 全选</button>
+        <button class="btn btn-select" id="btn-select-invert" style="display: none;">⇄ 反选</button>
+        <button class="btn btn-select" id="btn-select-none" style="display: none;">☐ 取消</button>
+      </div>
+
+      <button class="btn" id="btn-col-config" style="display: none">⚙️ 列配置</button>
+      <button class="btn" id="btn-toggle-view" title="点击切换列表/图标视图">🖼️ 图标视图</button>
+      <button class="btn" id="btn-open-settings" title="全局系统设置 (包含 Civitai API Key)">⚙️ 设置</button>
+    </div>
+
+    <!-- 列配置下拉窗 -->
+    <div id="column-selector">
+      <label><input type="checkbox" value="base_model" checked /> 基础模型</label>
+      <label><input type="checkbox" value="trigger_words" checked /> 提示词</label>
+      <label><input type="checkbox" value="type" checked /> 类型(Module)</label>
+      <label><input type="checkbox" value="dim" checked /> Rank(Dim)</label>
+      <label><input type="checkbox" value="lr" checked /> 学习率</label>
+      <label><input type="checkbox" value="epochs" checked /> Epochs</label>
+      <label><input type="checkbox" value="resolution" checked /> 分辨率</label>
+      <label><input type="checkbox" value="size" checked /> 文件大小</label>
+      <label><input type="checkbox" value="use_count" checked /> 使用频次</label>
+    </div>
+  </header>
+
+  <!-- 2. 下面部分拆成左右 (Left Directory Tree & Right LoRA View from Demo) -->
+  <div id="app-body">
+    <!-- 左边：目录 (Directory Tree) -->
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <span>≡ 目录</span>
+      </div>
+      <div id="folder-tree">
+        <!-- 文件夹列表将动态加载 -->
+      </div>
+      <div id="hitokoto-box">
+        <div id="hitokoto-header">
+          <span id="hitokoto-title">🌸 一言</span>
+          <div id="hitokoto-actions">
+            <span class="hk-btn" id="hk-refresh" title="换一句">🔄</span>
+            <span class="hk-btn" id="hk-settings" title="一言设置">⚙️</span>
+            <span class="hk-btn" id="hk-stats" title="查看 LoRA 统计数据">📊 统计</span>
+          </div>
+        </div>
+        <div id="hitokoto-text">
+          <div id="hitokoto-content">加载中...</div>
+          <div id="hitokoto-from"></div>
+        </div>
+        <div id="hitokoto-source" title="数据来源">📚 本地精选</div>
+      </div>
+    </div>
+
+    <!-- 右边：显示 LoRA (LoRA Cards & Details View) -->
+    <div id="main-content">
+
+
+      <!-- 内容渲染区 -->
+      <div id="content-area">
+        <div id="loading">✨ 加载中，请稍候...</div>
+
+        <!-- 列表视图容器 -->
+        <table id="list-view">
+          <thead>
+            <tr id="list-header">
+              <th style="width: 40px;"><input type="checkbox" id="select-all-list" /></th>
+              <th>文件名</th>
+              <!-- 列动态生成 -->
+            </tr>
+          </thead>
+          <tbody id="list-body"></tbody>
+        </table>
+
+        <!-- 图标视图容器 -->
+        <div id="icon-view"></div>
+      </div>
+
+      <!-- Batch Actions Toolbar -->
+      <div id="batch-toolbar">
+        <div style="font-size: 13px; color: var(--primary); font-weight: 500;">
+          已选择 <span id="selected-count" style="font-weight: bold; font-size: 15px;">0</span> 个模型
+        </div>
+        <div class="batch-actions">
+          <button class="btn btn-batch-action" onclick="handleBatchAction('auto')" title="将选中模型已算好的训练高频词套用为触发词">🪄
+            批量应用高频词</button>
+          <button class="btn btn-batch-action" onclick="handleBatchAction('civitai')" title="从 Civitai 批量拉取官方推荐触发词">🌐
+            批量拉取Civitai</button>
+          <button class="btn btn-batch-action" onclick="handleBatchAction('reset')"
+            style="background: rgba(255, 82, 82, 0.15); border-color: rgba(255, 82, 82, 0.3); color: #ff8a8a;"
+            title="清空选中模型的自定义触发词 (user_trigger 设为 NULL)，恢复为默认自动高频词">🗑️ 批量重置提示词</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1.5秒大图放大与参数统一融合悬浮窗 -->
+  <div id="image-preview-popover"
+    style="display:none; position:fixed; z-index:10005; pointer-events:none; background:rgba(22, 22, 30, 0.96); border:1px solid var(--primary); border-radius:12px; padding:12px; box-shadow:0 14px 40px rgba(0,0,0,0.85); backdrop-filter:blur(10px); transition:opacity 0.2s ease; width:340px; box-sizing:border-box; flex-direction:column; gap:10px;">
+    <img id="image-preview-img"
+      style="width:100%; max-height:280px; object-fit:contain; border-radius:8px; background:#111; display:none;" />
+    <div id="image-preview-details" style="font-size:12px; color:#ccc;"></div>
+  </div>
+
+  <!-- 右键菜单 -->
+  <div id="context-menu">
+    <div class="menu-item" id="menu-detail">📊 查看详细参数</div>
+  </div>
+
+  <!-- 详细参数弹窗 -->
+  <div id="detail-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title" style="flex:1;">LoRA 详细参数</div>
+        <div class="close-btn" id="modal-close">&times;</div>
+      </div>
+      <div class="modal-body">
+        <!-- 左列：基本信息、训练参数、杂项 -->
+        <div style="
+              flex: 1.3;
+              display: flex;
+              flex-direction: column;
+              overflow-y: auto;
+            ">
+          <div class="param-section">
+            <h3 id="sec-basic-header"
+              style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <span>基本信息</span>
+              <span id="sec-basic-icon" style="font-size: 11px; color: #8ab4f8;">▼</span>
+            </h3>
+            <div id="sec-basic-body" style="margin-top: 12px;">
+              <!-- 上部：左侧预览图 + 右侧简短参数 -->
+              <div style="display:flex; gap:12px; align-items:stretch; margin-bottom:12px;">
+                <!-- 左：LoRA 预览图区域 -->
+                <div id="lora-preview-section"
+                  style="flex-shrink:0; display:flex; flex-direction:column; gap:8px;">
+                  <!-- 有图时显示的容器 -->
+                  <div id="lora-preview-has-img"
+                    style="display:none; position: relative; width:150px; height:150px; cursor: pointer;"
+                    title="点击替换图片">
+                    <img id="lora-preview-img"
+                      style="width:150px; height:150px; object-fit:cover; border-radius:8px; background:#111; border:2px solid rgba(255,255,255,0.1); display:block;" />
+                    <div
+                      style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.65); border-radius:0 0 8px 8px; text-align:center; font-size:11px; color:#ccc; padding:4px 0; pointer-events:none;">
+                      🖼️ 点击替换图片</div>
+                    <!-- 删除按钮 -->
+                    <div id="lora-preview-delete-btn"
+                      style="position:absolute; top:5px; right:5px; width:22px; height:22px; line-height:22px; text-align:center; border-radius:50%; background:rgba(0,0,0,0.7); color:#ff7676; font-size:13px; cursor:pointer; user-select:none;"
+                      title="删除预览图">✕</div>
+                  </div>
+                  <!-- 无图时显示的上传区 -->
+                  <div id="lora-preview-no-img"
+                    style="display:none; width:150px; height:150px; border:2px dashed rgba(255,255,255,0.2); border-radius:8px; flex-direction:column; align-items:center; justify-content:center; gap:6px; cursor:pointer; transition:border-color 0.2s;"
+                    title="点击上传预览图">
+                    <span style="font-size:28px; opacity:0.5;">🖼️</span>
+                    <span style="font-size:12px; color:#888;">点击添加预览图</span>
+                    <span style="font-size:10px; color:#555;">支持 JPG / PNG</span>
+                  </div>
+                  <!-- 隐藏的文件选择 input -->
+                  <input type="file" id="lora-img-file-input" accept="image/png,image/jpeg,image/jpg,image/webp"
+                    style="display:none;" />
+                </div>
+                <!-- 右：简短参数（字少的关键信息） -->
+                <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:10px; justify-content:center;">
+                  <div class="param-item">
+                    <span class="param-key">基础模型</span>
+                    <span class="param-val" id="md-base" style="display:block;"></span>
+                  </div>
+                  <div class="param-item">
+                    <span class="param-key">模型大小</span>
+                    <span class="param-val" id="md-size" style="display:block;"></span>
+                  </div>
+                </div>
+              </div>
+              <!-- 下部：其余参数 -->
+              <div class="grid-2">
+                <div class="param-item">
+                  <span class="param-key">模型 Hash</span>
+                  <span class="param-val" id="md-hash"></span>
+                </div>
+                <div class="param-item" style="grid-column: span 2;">
+                  <span class="param-key">相对位置</span>
+                  <span class="param-val" id="md-rel-path" style="word-break: break-all;"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="param-section">
+            <h3 id="sec-train-header"
+              style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <span>训练参数</span>
+              <span id="sec-train-icon" style="font-size: 11px; color: #8ab4f8;">▼</span>
+            </h3>
+            <div id="sec-train-body" style="margin-top: 12px;">
+              <div class="grid-2">
+                <div class="param-item">
+                  <span class="param-key">结构类型</span>
+                  <span class="param-val" id="md-module"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">Rank / Alpha</span>
+                  <span class="param-val" id="md-dim"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">Epochs</span>
+                  <span class="param-val" id="md-epoch"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">分辨率</span>
+                  <span class="param-val" id="md-res"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">学习率 (UNet)</span>
+                  <span class="param-val" id="md-lr"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">学习率 (TE)</span>
+                  <span class="param-val" id="md-te-lr"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">优化器</span>
+                  <span class="param-val" id="md-opt"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">调度器</span>
+                  <span class="param-val" id="md-sch"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">Batch Size</span>
+                  <span class="param-val" id="md-batch"></span>
+                </div>
+                <div class="param-item">
+                  <span class="param-key">Clip Skip</span>
+                  <span class="param-val" id="md-clip"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="param-section">
+            <h3 id="sec-misc-header"
+              style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <span>杂项（JSON 原始记录）</span>
+              <span id="sec-misc-icon" style="font-size: 11px; color: #8ab4f8;">▼</span>
+            </h3>
+            <div id="sec-misc-body" style="margin-top: 12px;">
+              <pre id="md-raw" style="
+                    font-size: 11px;
+                    color: #888;
+                    background: #1a1a1a;
+                    padding: 10px;
+                    border-radius: 4px;
+                    max-height: 200px;
+                    overflow: auto;
+                    margin: 0;
+                  "></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列：标签频率 & 触发词编辑器与预设 -->
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+          <!-- 触发词编辑器与预设管理 -->
+          <div class="param-section trigger-editor-section"
+            style="display: flex; flex-direction: column; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h3 style="margin: 0;">触发词编辑与预设 (Triggers & Presets)</h3>
+              <button class="btn" id="btn-add-preset-modal"
+                style="padding: 3px 10px; font-size: 11px; height: 24px; background: rgba(45, 120, 245, 0.3); border-color: rgba(45, 120, 245, 0.6); color: #9cd2f8; font-weight: bold;">➕
+                添加预设</button>
+            </div>
+
+            <!-- LoRA 分类标签（供 AI 区分画风/人物/场景等，自动从路径推断，可手动覆盖） -->
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; background: rgba(30, 30, 46, 0.5); border-radius: 6px; border: 1px solid rgba(69, 71, 90, 0.5);">
+              <span class="param-key" style="white-space: nowrap; font-size: 12px;">🏷️ 分类</span>
+              <input id="modal-category-input" list="xbhh-category-list" placeholder="未分类（自动从路径推断）"
+                style="flex: 1; background: rgba(20, 20, 30, 0.8); border: 1px solid #45475a; border-radius: 4px; color: #cdd6f4; padding: 3px 8px; font-size: 12px; height: 26px;" />
+              <datalist id="xbhh-category-list"></datalist>
+              <span id="modal-category-hint" style="font-size: 10px; color: #6c7086; white-space: nowrap;"></span>
+            </div>
+
+            <!-- 动态预设卡片列表容器 (Collapsible Preset Cards) -->
+            <div id="preset-cards-container"
+              style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px;">
+              <!-- 预设卡片组由 JS 动态渲染 -->
+            </div>
+
+            <!-- 自定义触发词 (无任何预设时自动显示) -->
+            <div class="trigger-input-wrapper" id="single-trigger-wrapper" style="width: 100%; box-sizing: border-box;">
+              <span class="param-key">自定义触发词 (无预设时生效)</span>
+              <textarea id="modal-trigger-input" class="trigger-textarea" style="width: 100%; box-sizing: border-box;"
+                placeholder="输入自定义触发词..."></textarea>
+              <div class="editor-actions">
+                <button class="btn" id="btn-save-trigger"
+                  style="background: var(--primary); border: none; font-weight: bold; flex: 1.2; justify-content: center; color: white;">保存触发词</button>
+                <button class="btn" id="btn-reset-trigger" style="flex: 1; justify-content: center;">清除自定义</button>
+              </div>
+            </div>
+
+            <!-- TF-IDF Tags -->
+            <div class="pill-group" id="auto-trigger-group" style="margin-top: 10px;">
+              <div class="pill-group-title">训练标签最高频词 - 点击添加</div>
+              <div id="auto-trigger-pills">
+                <!-- Pills will be generated dynamically -->
+              </div>
+            </div>
+
+            <!-- Civitai Recommended Tags -->
+            <div class="pill-group" id="civit-trigger-group">
+              <div class="pill-group-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Civitai 推荐触发词 - 点击添加</span>
+                <button class="btn" id="btn-fetch-civitai-modal"
+                  style="padding: 2px 8px; font-size: 10px; height: 20px;">🌐 拉取推荐词</button>
+              </div>
+              <div id="civitai-trigger-pills">
+                <!-- Pills will be generated dynamically -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 可折叠：标签频次列表 -->
+          <div class="param-section" style="margin-bottom: 0;">
+            <h3 id="tag-freq-toggle-header"
+              style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0;">
+              <span>▶ 标签使用频率 (Tag Frequency)</span>
+              <span id="tag-freq-toggle-icon" style="font-size: 11px; color: #8ab4f8;">点击展开</span>
+            </h3>
+            <div id="md-tags-container" style="display: none; margin-top: 10px;">
+              <div id="md-tags" class="tag-freq-box" style="max-height: 180px; overflow-y: auto;">
+                <!-- 动态加载 -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批量操作进度 -->
+  <div id="batch-progress-overlay">
+    <div class="batch-progress-panel">
+      <div class="batch-progress-title" id="batch-progress-title">批量处理中...</div>
+      <div class="batch-progress-status" id="batch-progress-status">准备中...</div>
+      <div class="batch-progress-bar-wrap">
+        <div class="batch-progress-bar" id="batch-progress-bar"></div>
+      </div>
+      <div class="batch-progress-meta">
+        <span id="batch-progress-count">0 / 0</span>
+        <span id="batch-progress-stats"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LoRA 统计数据弹窗 -->
+  <div id="stats-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.65); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div class="modal-content" style="width:90%; max-width:760px; height:auto; max-height:82vh;">
+      <div class="modal-header">
+        <div class="modal-title" style="flex:1;">📊 LoRA 统计数据</div>
+        <div class="close-btn" id="stats-modal-close" title="关闭">&times;</div>
+      </div>
+      <div class="modal-body" style="display:block; overflow-y:auto; padding:20px;">
+        <div id="stats-modal-body">加载中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 一言设置弹窗 -->
+  <div id="hitokoto-settings-modal"
+    style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.65); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div class="modal-content" style="width:420px; max-width:90vw; height:auto;">
+      <div class="modal-header">
+        <div class="modal-title" style="flex:1;">⚙️ 一言设置</div>
+        <div class="close-btn" id="hitokoto-settings-close" title="关闭">&times;</div>
+      </div>
+      <div class="modal-body" style="display:block; overflow-y:auto; padding:20px; gap:14px;">
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">返回模式</div>
+          <select id="hk-mode-select"
+            style="width:100%; padding:8px 10px; background:rgba(16,12,24,0.8); border:1px solid var(--border); color:var(--text-main); border-radius:6px; font-size:13px; outline:none;">
+            <option value="random">随机（每次都不同）</option>
+            <option value="daily">每日固定（同一天同一句）</option>
+            <option value="moment">此刻（按时段自动应景）</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px;">分类筛选（可多选，留空=不限）</div>
+          <div id="hk-category-options" style="display:flex; flex-wrap:wrap; gap:8px;">
+            <label class="hk-cat-label"><input type="checkbox" value="影视"> 影视</label>
+            <label class="hk-cat-label"><input type="checkbox" value="文学"> 文学</label>
+            <label class="hk-cat-label"><input type="checkbox" value="诗词"> 诗词</label>
+            <label class="hk-cat-label"><input type="checkbox" value="原创"> 原创</label>
+          </div>
+        </div>
+
+        <div style="font-size:11px; color:var(--text-muted); line-height:1.6; background:rgba(16,12,24,0.4); border-radius:6px; padding:10px; margin-bottom:16px;">
+          💡 提示：分类多选时取并集；网络不通或超时会自动回退到本地精选语录。配置保存在浏览器本地，仅当前浏览器生效。
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:8px;">
+          <button class="btn" id="hitokoto-settings-reset" style="padding:6px 14px;">重置默认</button>
+          <button class="btn" id="hitokoto-settings-save" style="padding:6px 16px;">保存并刷新</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 全局系统设置弹窗 -->
+  <div id="settings-modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.65); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div class="modal-content"
+      style="width: 480px; max-width: 90vw; background: #181825; border: 1px solid #313244; border-radius: 12px; padding: 22px; box-shadow: 0 12px 36px rgba(0,0,0,0.6); color: #cdd6f4;">
+      <div class="modal-header"
+        style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #313244; padding-bottom: 12px; margin-bottom: 16px;">
+        <div class="modal-title"
+          style="font-size: 16px; font-weight: bold; color: #89b4fa; display: flex; align-items: center; gap: 8px;">⚙️
+          系统全局设置</div>
+        <div class="close-btn" id="settings-modal-close" style="cursor: pointer; font-size: 20px; color: #a6adc8;">
+          &times;</div>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="param-section"
+          style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 8px;">
+          <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 14px; color: #f5e0dc;">🌐 Civitai API Key (Personal
+            Access Token)</h3>
+          <div style="font-size: 12px; color: #a6adc8; line-height: 1.5; margin-bottom: 10px;">
+            配置 API 密钥可解锁 Civitai 受限/R18/会员模型的推荐触发词拉取，并提升 API 请求额度。<br />
+            <strong style="color:#f9e2af;">获取步骤：</strong>
+            登录 <a href="https://civitai.com/user/account" target="_blank"
+              style="color: #89b4fa; text-decoration: underline;">Civitai 账号设置页</a>
+            → 往下翻到「API Keys」→ 填写名称 → Add API Key → 复制生成的长字符串粘贴到下方。<br />
+            <span style="color:#a6adc8; opacity:0.85;">⚠️ Token 只显示一次，请妥善保存；填错也能保存但拉取时会失败，请务必先点测试按钮验证。</span>
+          </div>
+          <form onsubmit="return false;"
+            style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; width: 100%;">
+            <input type="password" id="input-civitai-api-key" autocomplete="current-password"
+              placeholder="粘贴你的 Civitai API Token..."
+              style="flex: 1; padding: 8px 12px; background: #11111b; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; font-size: 13px; outline: none;" />
+            <button type="button" class="btn" id="btn-toggle-key-visibility" style="padding: 8px 12px; font-size: 12px;"
+              title="显示/隐藏密钥">👁️</button>
+          </form>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="btn" id="btn-test-civitai-key"
+              style="background: rgba(137, 180, 250, 0.2); border: 1px solid rgba(137, 180, 250, 0.5); color: #89b4fa; padding: 6px 14px; font-size: 12px; font-weight: bold; border-radius: 6px;">🧪
+              测试 API 连通性</button>
+            <span id="test-key-result" style="font-size: 12px; flex: 1; white-space: pre-line; word-break: break-word; line-height: 1.5;"></span>
+          </div>
+        </div>
+
+        <!-- 悬浮大图尺寸调节设置 -->
+        <div class="param-section"
+          style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 14px; border-radius: 8px;">
+          <h3
+            style="margin-top: 0; margin-bottom: 8px; font-size: 14px; color: #f5e0dc; display: flex; justify-content: space-between; align-items: center;">
+            <span>🖼️ 悬浮大图预览尺寸</span>
+            <span id="preview-size-display" style="color: #89b4fa; font-weight: bold; font-size: 13px;">280 px</span>
+          </h3>
+          <div style="font-size: 12px; color: #a6adc8; line-height: 1.5; margin-bottom: 10px;">
+            拖动调节鼠标悬浮 1.5 秒时弹出的预览大图高度上限（150px - 500px）。
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <input type="range" id="input-hover-image-size" min="150" max="500" step="10" value="280"
+              style="flex: 1; accent-color: #89b4fa; cursor: pointer;" />
+            <button type="button" class="btn" id="btn-reset-preview-size"
+              style="padding: 4px 10px; font-size: 11px;">重置</button>
+          </div>
+        </div>
+      </div>
+      <div
+        style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #313244; padding-top: 14px;">
+        <button class="btn" id="settings-modal-cancel" style="padding: 6px 16px;">取消</button>
+        <button class="btn" id="settings-modal-save"
+          style="background: var(--primary); color: white; border: none; font-weight: bold; padding: 6px 20px;">保存配置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Melodify Style Circular Scroll Progress Back-To-Top Button -->
+  <div id="back-to-top" title="回到顶部">
+    <svg class="progress-ring" width="46" height="46" viewBox="0 0 46 46">
+      <defs>
+        <linearGradient id="back-to-top-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f3a6e9" />
+          <stop offset="50%" stop-color="#c462c9" />
+          <stop offset="100%" stop-color="#87389f" />
+        </linearGradient>
+      </defs>
+      <circle class="progress-ring__track" cx="23" cy="23" r="19" stroke="rgba(243, 166, 233, 0.18)" stroke-width="3"
+        fill="none" />
+      <circle class="progress-ring__circle" cx="23" cy="23" r="19" stroke="url(#back-to-top-gradient)" stroke-width="3"
+        fill="none" stroke-dasharray="119.38" stroke-dashoffset="119.38" stroke-linecap="round" />
+    </svg>
+    <div class="back-to-top-icon">▲</div>
+  </div>
+
+  <!-- 逻辑脚本 -->
+  <script>
+    // --- 前缀树 (Trie Tree) 模糊搜索引擎 ---
+    class TrieNode {
+      constructor() {
+        this.children = {};
+        this.items = new Set();
+      }
+    }
+
+    class Trie {
+      constructor() {
+        this.root = new TrieNode();
+      }
+
+      insert(word, item) {
+        word = word.toLowerCase().trim();
+        if (!word) return;
+        let node = this.root;
+        for (const char of word) {
+          if (!node.children[char]) {
+            node.children[char] = new TrieNode();
+          }
+          node = node.children[char];
+          node.items.add(item);
+        }
+      }
+
+      search(prefix) {
+        prefix = prefix.toLowerCase().trim();
+        if (!prefix) return [];
+        let node = this.root;
+        for (const char of prefix) {
+          if (!node.children[char]) {
+            return [];
+          }
+          node = node.children[char];
+        }
+        return Array.from(node.items);
+      }
+    }
+
+    // --- 状态管理 ---
+    let loraFolders = {};
+    let currentFolder = "";
+    let currentLoras = [];
+    let viewMode = "icon"; // 'icon' or 'list'
+    let hoverTimer = null;
+    let selectedLoraName = null;
+    let disableAutoTrigger = false;
+    let civitaiApiKey = "";
+    let hoverImageSize = parseInt(localStorage.getItem("xbhh_hover_image_size") || "280", 10);
+
+    function formatFileSize(bytes) {
+      if (!bytes || isNaN(bytes) || bytes <= 0) return "-";
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let i = 0;
+      let size = bytes;
+      while (size >= 1024 && i < units.length - 1) {
+        size /= 1024;
+        i++;
+      }
+      return `${size.toFixed(2)} ${units[i]}`;
+    }
+
+    // Multi-select management
+    let selectedLoras = new Set();
+    let lastSelectedIndex = -1;
+    let loraTrie = new Trie();
+    let batchOperationRunning = false;
+
+    const MAX_CONSECUTIVE_FAILURES = 5;
+    const CIVITAI_ITEM_DELAY_MS = 350;
+
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+      return "";
+    }
+
+    function setCookie(name, value, days = 365) {
+      document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${days * 86400}`;
+    }
+
+    function updateViewToggleUI() {
+      const btnToggleView = document.getElementById("btn-toggle-view");
+      const btnCol = document.getElementById("btn-col-config");
+      if (!btnToggleView) return;
+      if (viewMode === "icon") {
+        btnToggleView.innerHTML = "🖼️ 图标视图";
+        btnToggleView.title = "当前为图标视图，点击切换为列表视图";
+        if (btnCol) btnCol.style.display = "none";
+        const colSel = document.getElementById("column-selector");
+        if (colSel) colSel.style.display = "none";
+      } else {
+        btnToggleView.innerHTML = "📋 列表视图";
+        btnToggleView.title = "当前为列表视图，点击切换为图标视图";
+        if (btnCol) btnCol.style.display = "inline-flex";
+      }
+    }
+
+    function updateAutoTriggerBtnUI() {
+      const btn = document.getElementById("btn-toggle-auto-trigger");
+      if (!btn) return;
+      if (disableAutoTrigger) {
+        btn.textContent = "🚫 节点自动提示词：已关闭";
+        btn.classList.add("btn-off");
+        btn.title = "已关闭自动提示词功能：在 LoRA 堆 Plus 节点中选择或添加 LoRA 时，不再自动填充高频/Civitai提示词（保留手动设定的自定义触发词）。点击切换为开启。";
+      } else {
+        btn.textContent = "⚡ 节点自动提示词：已开启";
+        btn.classList.remove("btn-off");
+        btn.title = "已开启自动提示词功能：在 LoRA 堆 Plus 节点中选择或添加 LoRA 时，会自动填充默认高频/Civitai提示词。点击切换为关闭。";
+      }
+    }
+
+    // --- 视图配置列 ---
+    const columnsConfig = [
+      {
+        id: "base_model",
+        name: "基础模型",
+        get: (d) => d.training_params?.base_model || "-",
+      },
+      {
+        id: "trigger_words",
+        name: "提示词",
+        get: (d) => {
+          if (d.db_info?.user_trigger !== null && d.db_info?.user_trigger !== undefined) {
+            if (d.db_info.user_trigger.trim() === "") return "[自定义] (空)";
+            return `[自定义] ${d.db_info.user_trigger}`;
+          }
+          if (disableAutoTrigger) return "-";
+          if (d.db_info?.auto_trigger) return `[Auto] ${d.db_info.auto_trigger}`;
+          if (d.db_info?.trained_words) return `[Civitai] ${d.db_info.trained_words}`;
+          return "-";
+        },
+      },
+      {
+        id: "type",
+        name: "类型",
+        get: (d) =>
+          d.training_params?.network_module?.replace("networks.", "") || "-",
+      },
+      {
+        id: "dim",
+        name: "Rank",
+        get: (d) => d.training_params?.network_dim || "-",
+      },
+      {
+        id: "lr",
+        name: "学习率",
+        get: (d) => d.training_params?.unet_lr || "-",
+      },
+      {
+        id: "epochs",
+        name: "Epochs",
+        get: (d) => d.training_params?.num_epochs || "-",
+      },
+      {
+        id: "resolution",
+        name: "分辨率",
+        get: (d) => d.training_params?.resolution || "-",
+      },
+      {
+        id: "size",
+        name: "大小",
+        get: (d) => {
+          if (!d.file_info?.size) return "-";
+          const mb = d.file_info.size / (1024 * 1024);
+          return mb.toFixed(2) + " MB";
+        },
+      },
+      {
+        id: "use_count",
+        name: "使用次数",
+        get: (d) => d.db_info?.use_count || 0,
+      },
+    ];
+
+    // 初始化绑定
+    window.addEventListener("DOMContentLoaded", async () => {
+      const savedView = localStorage.getItem("xbhh_lora_view_mode");
+      if (savedView === "list" || savedView === "icon") {
+        viewMode = savedView;
+      }
+      updateViewToggleUI();
+
+      const settings = await fetchAPI("/xbhh/lora/settings");
+      if (settings) {
+        if (typeof settings.disable_auto_trigger === "boolean") {
+          disableAutoTrigger = settings.disable_auto_trigger;
+        }
+        if (settings.civitai_api_key) {
+          civitaiApiKey = settings.civitai_api_key;
+        }
+      } else {
+        disableAutoTrigger = localStorage.getItem("xbhh_disable_auto_trigger") === "true";
+      }
+
+      if (!civitaiApiKey) {
+        civitaiApiKey = localStorage.getItem("xbhh_civitai_api_key") || getCookie("xbhh_civitai_api_key") || "";
+      }
+
+      updateAutoTriggerBtnUI();
+
+      await loadFolders();
+      await loadLoras("");
+      initHitokoto();
+      setupEvents();
+    });
+
+    // --- API 请求 ---
+    async function fetchAPI(url) {
+      try {
+        const res = await fetch(url);
+        return await res.json();
+      } catch (e) {
+        console.error("API error:", e);
+        return null;
+      }
+    }
+
+    async function postAPI(url, body) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+        return await res.json();
+      } catch (e) {
+        console.error("POST API error:", e);
+        return null;
+      }
+    }
+
+    // 存储折叠状态的集合
+    const collapsedFolders = new Set();
+    let folderListItems = [];
+
+    // ── 左下角一言 + LoRA 统计 ─────────────────────────────────────────
+    const HITOKOTO_QUOTES = [
+      { text: "人类的赞歌就是勇气的赞歌，人类的伟大就是勇气的伟大。", from: "JoJo的奇妙冒险" },
+      { text: "我命由我不由天，是魔是仙，我自己说了算。", from: "哪吒之魔童降世" },
+      { text: "凡是过去，皆为序章。", from: "莎士比亚" },
+      { text: "你亲眼看到的，未必是真相；你听到的，更未必是事实。", from: "进击的巨人" },
+      { text: "我们的征途，是星辰大海。", from: "银河英雄传说" },
+      { text: "不管前方的路有多苦，只要走的方向正确，都比站在原地更接近幸福。", from: "千与千寻" },
+      { text: "只要活着，哪里都是天堂。", from: "新世纪福音战士" },
+      { text: "代码是写给人看的，只是顺便能在机器上运行。", from: "SICP" },
+      { text: "简单，是可靠的先驱。", from: "Edsger Dijkstra" },
+      { text: "过早优化是万恶之源。", from: "Donald Knuth" },
+      { text: "完美不是无可增加，而是无可删减。", from: "Antoine de Saint-Exupéry" },
+      { text: "先让它能工作，再让它正确，最后让它快速。", from: "Kent Beck" },
+      { text: "Talk is cheap, show me the code.", from: "Linus Torvalds" },
+      { text: "预测未来最好的方法，就是亲手创造它。", from: "Alan Kay" },
+      { text: "知识就像一片大海，我们每多学一点，海岸线就长一点。", from: "佚名" },
+      { text: "走得再远，也不能忘记为什么出发。", from: "纪伯伦" },
+      { text: "在最深的绝望里，遇见最美丽的风景。", from: "几米" },
+      { text: "山高路远，看世界，也找自己。", from: "佚名" },
+      { text: "心若没有栖息的地方，到哪里都是在流浪。", from: "三毛" },
+      { text: "我们一路奔跑，只为追上那个被自己寄予厚望的自己。", from: "佚名" },
+      { text: "海到无边天作岸，山登绝顶我为峰。", from: "林则徐" },
+      { text: "种一棵树最好的时间是十年前，其次是现在。", from: "佚名" },
+      { text: "今天的你，是昨天的你所想象的明天的样子。", from: "佚名" },
+      { text: "保持饥饿，保持愚蠢。", from: "Steve Jobs" },
+      { text: "凡是杀不死我的，必使我更强大。", from: "尼采" },
+      { text: "天行健，君子以自强不息。", from: "周易" },
+      { text: "博学之，审问之，慎思之，明辨之，笃行之。", from: "礼记·中庸" },
+      { text: "千里之行，始于足下。", from: "老子" },
+      { text: "上善若水，水善利万物而不争。", from: "老子" },
+      { text: "愿你出走半生，归来仍是少年。", from: "佚名" }
+    ];
+
+    let lastHitokotoIdx = -1;
+    let lastHitokotoUuid = null; // 避免连续两次返回同一条
+
+    // 一言配置（持久化到 localStorage）
+    const HITOKOTO_CONFIG_KEY = "xbhh_hitokoto_config";
+    const HITOKOTO_DEFAULT_CONFIG = {
+      mode: "random",                // random | daily | moment
+      categories: ["影视", "文学", "诗词"] // 空数组 = 不限
+    };
+    let hitokotoConfig = { ...HITOKOTO_DEFAULT_CONFIG };
+
+    function loadHitokotoConfig() {
+      try {
+        const raw = localStorage.getItem(HITOKOTO_CONFIG_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          hitokotoConfig = {
+            mode: parsed.mode === "daily" || parsed.mode === "moment" ? parsed.mode : "random",
+            categories: Array.isArray(parsed.categories) ? parsed.categories : []
+          };
+        }
+      } catch (e) { /* 用默认值 */ }
+    }
+    function saveHitokotoConfig() {
+      try { localStorage.setItem(HITOKOTO_CONFIG_KEY, JSON.stringify(hitokotoConfig)); } catch (e) {}
+    }
+
+    // 本地兜底：从内置数组随机取一条
+    function pickLocalHitokoto() {
+      let idx = lastHitokotoIdx;
+      if (HITOKOTO_QUOTES.length > 1) {
+        while (idx === lastHitokotoIdx) {
+          idx = Math.floor(Math.random() * HITOKOTO_QUOTES.length);
+        }
+      }
+      lastHitokotoIdx = idx;
+      return { text: HITOKOTO_QUOTES[idx].text, from: HITOKOTO_QUOTES[idx].from, isLocal: true };
+    }
+
+    // 外部 API：调用 uapis.cn 一言接口
+    // 成功返回 {text, from, uuid, isLocal:false}，失败返回 null
+    async function fetchHitokotoFromAPI() {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      try {
+        const params = new URLSearchParams();
+        if (hitokotoConfig.mode && hitokotoConfig.mode !== "random") {
+          params.set("mode", hitokotoConfig.mode);
+        }
+        const cats = (hitokotoConfig.categories || []).filter(c => c && c.trim());
+        if (cats.length > 0) {
+          params.set("category", cats.join(","));
+        }
+        const query = params.toString();
+        const url = "https://uapis.cn/api/v1/saying/random" + (query ? "?" + query : "");
+
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) return null;
+        const data = await res.json();
+        // random 模式直接返回语录对象；daily/recommend/moment 模式返回包装对象，语录在 item 中
+        const item = (data && data.item) ? data.item : data;
+        if (!item || !item.content) return null;
+        // 避免连续两次拿到同一条
+        if (lastHitokotoUuid && item.uuid === lastHitokotoUuid) return null;
+        lastHitokotoUuid = item.uuid || null;
+
+        // 来源拼装：优先 "作品 · 作者"，其次单字段
+        let from = "";
+        const src = (item.source || "").trim();
+        const author = (item.author || "").trim();
+        if (src && author && src !== author) from = `${src} · ${author}`;
+        else if (src) from = src;
+        else if (author) from = author;
+
+        return { text: item.content, from: from, uuid: item.uuid || null, isLocal: false };
+      } catch (e) {
+        // 网络异常 / 超时 / CORS 拦截 都会落到这里
+        return null;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    // 渲染一言：API 优先，失败兜底本地
+    async function refreshHitokoto() {
+      const contentEl = document.getElementById("hitokoto-content");
+      const fromEl = document.getElementById("hitokoto-from");
+      const sourceEl = document.getElementById("hitokoto-source");
+      if (!contentEl) return;
+
+      // 淡出
+      contentEl.style.transition = "opacity 0.15s ease";
+      fromEl.style.transition = "opacity 0.15s ease";
+      contentEl.style.opacity = "0";
+      fromEl.style.opacity = "0";
+
+      let quote = null;
+      try {
+        quote = await fetchHitokotoFromAPI();
+      } catch (e) { quote = null; }
+      if (!quote) quote = pickLocalHitokoto();
+
+      // 淡入新内容
+      setTimeout(() => {
+        contentEl.innerText = "「" + quote.text + "」";
+        fromEl.innerText = quote.from ? "—— " + quote.from : "";
+        contentEl.style.transition = "opacity 0.3s ease";
+        fromEl.style.transition = "opacity 0.3s ease";
+        contentEl.style.opacity = "1";
+        fromEl.style.opacity = "0.8";
+
+        // 来源标注
+        if (sourceEl) {
+          if (quote.isLocal) {
+            sourceEl.innerText = "📚 本地精选（API 不可用，自动兜底）";
+            sourceEl.title = "外部 API 调用失败，已使用内置语录";
+          } else {
+            const modeText = hitokotoConfig.mode === "daily" ? "· 每日" : hitokotoConfig.mode === "moment" ? "· 此刻" : "· 随机";
+            const cats = (hitokotoConfig.categories || []).join("/");
+            sourceEl.innerText = `📡 uapis.cn ${modeText}${cats ? " · " + cats : ""}`;
+            sourceEl.title = "数据来源：uapis.cn 一言接口";
+          }
+        }
+      }, 160);
+    }
+
+    // ── 一言设置弹窗 ──────────────────────────────────────────────────
+    function openHitokotoSettings() {
+      const modal = document.getElementById("hitokoto-settings-modal");
+      if (!modal) return;
+      // 回填当前配置
+      document.getElementById("hk-mode-select").value = hitokotoConfig.mode;
+      const checks = document.querySelectorAll("#hk-category-options input[type=checkbox]");
+      checks.forEach(cb => {
+        cb.checked = (hitokotoConfig.categories || []).includes(cb.value);
+      });
+      modal.style.display = "flex";
+    }
+    function closeHitokotoSettings() {
+      const modal = document.getElementById("hitokoto-settings-modal");
+      if (modal) modal.style.display = "none";
+    }
+    function applyHitokotoSettingsFromForm() {
+      const mode = document.getElementById("hk-mode-select").value;
+      const checks = document.querySelectorAll("#hk-category-options input[type=checkbox]:checked");
+      const categories = Array.from(checks).map(cb => cb.value);
+      hitokotoConfig.mode = mode;
+      hitokotoConfig.categories = categories;
+      saveHitokotoConfig();
+    }
+
+    function initHitokoto() {
+      loadHitokotoConfig();
+      refreshHitokoto();
+
+      document.getElementById("hk-refresh").onclick = () => refreshHitokoto();
+      document.getElementById("hk-settings").onclick = openHitokotoSettings;
+      document.getElementById("hk-stats").onclick = showStatsModal;
+
+      // 设置弹窗事件
+      document.getElementById("hitokoto-settings-close").onclick = closeHitokotoSettings;
+      document.getElementById("hitokoto-settings-modal").onclick = (e) => {
+        if (e.target.id === "hitokoto-settings-modal") closeHitokotoSettings();
+      };
+      document.getElementById("hitokoto-settings-save").onclick = () => {
+        applyHitokotoSettingsFromForm();
+        closeHitokotoSettings();
+        // 重置 uuid 去重，确保新模式下能正常获取
+        lastHitokotoUuid = null;
+        refreshHitokoto();
+      };
+      document.getElementById("hitokoto-settings-reset").onclick = () => {
+        hitokotoConfig = { ...HITOKOTO_DEFAULT_CONFIG };
+        saveHitokotoConfig();
+        document.getElementById("hk-mode-select").value = hitokotoConfig.mode;
+        document.querySelectorAll("#hk-category-options input[type=checkbox]").forEach(cb => {
+          cb.checked = hitokotoConfig.categories.includes(cb.value);
+        });
+      };
+
+      // 统计弹窗事件
+      const statsModal = document.getElementById("stats-modal");
+      document.getElementById("stats-modal-close").onclick = () => {
+        statsModal.style.display = "none";
+      };
+      statsModal.onclick = (e) => {
+        if (e.target === statsModal) statsModal.style.display = "none";
+      };
+    }
+
+    // 字节数格式化为 KB/MB/GB
+    function formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return "0 B";
+      const units = ["B", "KB", "MB", "GB", "TB"];
+      let i = 0;
+      let v = bytes;
+      while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+      return v.toFixed(v < 10 && i > 0 ? 1 : 0) + " " + units[i];
+    }
+
+    function showStatsModal() {
+      const modal = document.getElementById("stats-modal");
+      const body = document.getElementById("stats-modal-body");
+      if (!modal || !body) return;
+
+      const all = currentLoras || [];
+      const filtered = getFilteredLoras();
+
+      // 计算统计
+      let totalSize = 0;
+      let withPreview = 0, withoutPreview = 0;
+      let withUserTrigger = 0, withoutUserTrigger = 0;
+      let withTrainedWords = 0;
+      let withCivitaiHash = 0;
+      let totalUseCount = 0;
+      let maxUseCount = 0;
+      let mostUsedLora = null;
+      const baseModelMap = {};
+      const folderMap = {};
+      const profileCount = {};
+
+      all.forEach(lora => {
+        const size = lora.file_info?.size || 0;
+        totalSize += size;
+
+        if (lora.preview_image) withPreview++; else withoutPreview++;
+
+        const ut = lora.db_info?.user_trigger;
+        if (ut && ut.trim()) withUserTrigger++; else withoutUserTrigger++;
+
+        if (lora.db_info?.trained_words) withTrainedWords++;
+        if (lora.db_info?.hash) withCivitaiHash++;
+
+        const uc = lora.db_info?.use_count || 0;
+        totalUseCount += uc;
+        if (uc > maxUseCount) { maxUseCount = uc; mostUsedLora = lora; }
+
+        const bm = (lora.training_params?.base_model || "").trim();
+        if (bm) baseModelMap[bm] = (baseModelMap[bm] || 0) + 1;
+
+        const folder = lora.name.includes("/")
+          ? lora.name.substring(0, lora.name.lastIndexOf("/"))
+          : "（根目录）";
+        folderMap[folder] = (folderMap[folder] || 0) + 1;
+
+        const pCount = Array.isArray(lora.db_info?.profiles) ? lora.db_info.profiles.length : 0;
+        profileCount[pCount] = (profileCount[pCount] || 0) + 1;
+      });
+
+      const avgSize = all.length ? totalSize / all.length : 0;
+
+      const topBaseModels = Object.entries(baseModelMap)
+        .sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const topFolders = Object.entries(folderMap)
+        .sort((a, b) => b[1] - a[1]).slice(0, 6);
+
+      const statsCards = [
+        { label: "LoRA 总数", value: all.length, sub: `当前过滤显示 ${filtered.length}` },
+        { label: "总文件大小", value: formatBytes(totalSize), sub: `平均 ${formatBytes(avgSize)}/个` },
+        { label: "有预览图", value: withPreview, sub: `无图 ${withoutPreview}` },
+        { label: "自定义触发词", value: withUserTrigger, sub: `未设 ${withoutUserTrigger}` },
+        { label: "已拉取 Civitai 词", value: withTrainedWords, sub: `有 hash ${withCivitaiHash}` },
+        { label: "累计使用次数", value: totalUseCount, sub: mostUsedLora ? `最常用: ${mostUsedLora.name.split("/").pop()}` : "暂无记录" }
+      ];
+
+      const cardsHTML = statsCards.map(c => `
+        <div style="background:rgba(16,12,24,0.6); border:1px solid var(--border); border-radius:8px; padding:12px 14px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">${c.label}</div>
+          <div style="font-size:20px; font-weight:700; color:var(--primary); line-height:1.2;">${c.value}</div>
+          ${c.sub ? `<div style="font-size:11px; color:var(--text-muted); margin-top:4px; word-break:break-all;">${c.sub}</div>` : ""}
+        </div>
+      `).join("");
+
+      const listBlock = (title, items, emptyHint) => `
+        <div class="param-section">
+          <h3 style="font-size:13px; color:var(--primary); margin:0 0 10px 0;">${title}</h3>
+          ${items.length === 0
+            ? `<div style="font-size:12px; color:var(--text-muted);">${emptyHint}</div>`
+            : items.map(([k, v]) => {
+              const pct = all.length ? (v / all.length * 100).toFixed(1) : 0;
+              return `
+                <div style="margin-bottom:8px;">
+                  <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:3px;">
+                    <span style="color:var(--text-main); word-break:break-all; max-width:75%;">${k || "（空）"}</span>
+                    <span style="color:var(--text-muted);">${v} 个 · ${pct}%</span>
+                  </div>
+                  <div style="height:5px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+                    <div style="width:${pct}%; height:100%; background:linear-gradient(90deg, var(--primary), #c084fc);"></div>
+                  </div>
+                </div>`;
+            }).join("")
+          }
+        </div>
+      `;
+
+      body.innerHTML = `
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-bottom:18px;">
+          ${cardsHTML}
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+          ${listBlock("基础模型分布 (Top 5)", topBaseModels, "暂无训练参数中的基础模型字段")}
+          ${listBlock("文件夹分布 (Top 6)", topFolders, "暂无文件夹")}
+        </div>
+        <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border); font-size:11px; color:var(--text-muted); text-align:right;">
+          数据基于本地缓存 currentLoras，刷新页面或后台扫描后自动同步
+        </div>
+      `;
+      modal.style.display = "flex";
+    }
+    // ── 一言 + 统计结束 ─────────────────────────────────────────────────
+
+    async function loadFolders() {
+      const data = await fetchAPI("/xbhh/lora/folders");
+      if (data) loraFolders = data;
+
+      const tree = document.getElementById("folder-tree");
+      tree.innerHTML = "";
+
+      const paths = Object.keys(loraFolders).sort();
+
+      // 预先计算哪些文件夹有子文件夹
+      const hasChildren = {};
+      paths.forEach(p => {
+        if (!p) return;
+        const parent = p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '';
+        hasChildren[parent] = true;
+      });
+
+      folderListItems = [];
+
+      paths.forEach((path) => {
+        const info = loraFolders[path];
+        const div = document.createElement("div");
+        div.className = "folder-item";
+        div.dataset.path = path;
+        if (path === currentFolder) div.classList.add("active");
+
+        const depth = path ? path.split("/").length : 0;
+        div.style.paddingLeft = 10 + depth * 15 + "px";
+
+        const isParent = hasChildren[path];
+        const isCollapsed = collapsedFolders.has(path);
+
+        let arrowHtml = "";
+        if (isParent) {
+          arrowHtml = `<span class="folder-toggle folder-arrow" style="display:inline-block; width:16px; cursor:pointer; font-size:11px; color:var(--primary);">${isCollapsed ? '▸' : '▾'}</span>`;
+        } else {
+          arrowHtml = `<span class="folder-arrow" style="display:inline-block; width:16px; font-size:10px; color:var(--text-muted); opacity:0.6;">•</span>`;
+        }
+
+        div.innerHTML = `${arrowHtml}<span style="font-weight: 500;">${info.name}</span>`;
+
+        // 点击箭头切换折叠状态
+        const toggleBtn = div.querySelector('.folder-toggle');
+        if (toggleBtn) {
+          toggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (collapsedFolders.has(path)) {
+              collapsedFolders.delete(path);
+              toggleBtn.innerText = '▾';
+            } else {
+              collapsedFolders.add(path);
+              toggleBtn.innerText = '▸';
+            }
+            updateFolderVisibility();
+          };
+        }
+
+        div.onclick = () => {
+          document
+            .querySelectorAll(".folder-item")
+            .forEach((el) => el.classList.remove("active"));
+          div.classList.add("active");
+          currentFolder = path;
+
+          loadLoras(path);
+        };
+
+        folderListItems.push({ path, div });
+        tree.appendChild(div);
+      });
+
+      updateFolderVisibility();
+    }
+
+    function updateFolderVisibility() {
+      folderListItems.forEach(item => {
+        let isHidden = false;
+        if (item.path !== "") {
+          let parts = item.path.split('/');
+          let checkPath = "";
+          for (let i = 0; i < parts.length - 1; i++) {
+            checkPath = checkPath ? checkPath + '/' + parts[i] : parts[i];
+            if (collapsedFolders.has(checkPath)) {
+              isHidden = true;
+              break;
+            }
+          }
+        }
+        item.div.style.display = isHidden ? "none" : "flex";
+      });
+    }
+
+    function buildTrie(loras) {
+      loraTrie = new Trie();
+      loras.forEach((lora) => {
+        // 插入全名
+        loraTrie.insert(lora.name, lora);
+        // 插入文件名
+        const basename = lora.name.split("/").pop().split("\\").pop();
+        loraTrie.insert(basename, lora);
+        // 插入切分名
+        const parts = lora.name.split(/[\/\_\-\s\.]/);
+        parts.forEach((part) => {
+          if (part && part.length > 1) {
+            loraTrie.insert(part, lora);
+          }
+        });
+        // 插入数据库中的触发词
+        const trigger = lora.db_info?.active_trigger || "";
+        if (trigger) {
+          trigger.split(/[\,\s]+/).forEach((word) => {
+            if (word) loraTrie.insert(word, lora);
+          });
+        }
+      });
+    }
+
+    async function loadLoras(folder, preserveSelection = false) {
+      document.getElementById("loading").style.display = "block";
+      document.getElementById("icon-view").style.display = "none";
+      document.getElementById("list-view").style.display = "none";
+
+      if (!preserveSelection) {
+        selectedLoras.clear();
+        lastSelectedIndex = -1;
+        updateBatchToolbar();
+      }
+
+      const fp = encodeURIComponent(folder);
+      const data = await fetchAPI(`/xbhh/lora/metadata-batch?folder=${fp}`);
+      currentLoras = data || [];
+
+      // 构建 Trie 树
+      buildTrie(currentLoras);
+
+      renderView();
+      document.getElementById("loading").style.display = "none";
+    }
+
+    // --- Batch Toolbar visibility ---
+    function updateBatchToolbar() {
+      const toolbar = document.getElementById("batch-toolbar");
+      const countSpan = document.getElementById("selected-count");
+      countSpan.innerText = selectedLoras.size;
+
+      const btnInvert = document.getElementById("btn-select-invert");
+      const btnNone = document.getElementById("btn-select-none");
+
+      if (selectedLoras.size > 0) {
+        toolbar.classList.add("show");
+        if (btnInvert) btnInvert.style.display = "inline-flex";
+        if (btnNone) btnNone.style.display = "inline-flex";
+      } else {
+        toolbar.classList.remove("show");
+        if (btnInvert) btnInvert.style.display = "none";
+        if (btnNone) btnNone.style.display = "none";
+      }
+    }
+
+    let currentFilterRule = "all";
+
+    // --- 获取当前过滤后的列表 ---
+    function getFilteredLoras() {
+      const query = document
+        .getElementById("search-input")
+        .value.toLowerCase().trim();
+
+      let list = currentLoras;
+
+      // 1. 关键词搜索
+      if (query) {
+        const trieMatches = loraTrie.search(query);
+        list = list.filter(
+          (lora) =>
+            trieMatches.includes(lora) ||
+            lora.name.toLowerCase().includes(query) ||
+            (lora.db_info?.active_trigger || "").toLowerCase().includes(query)
+        );
+      }
+
+      // 2. 按钮规则过滤 (方便后续扩展更多过滤规则)
+      if (currentFilterRule === "hide_custom") {
+        list = list.filter((lora) => !hasUserTrigger(lora));
+      } else if (currentFilterRule === "only_custom") {
+        list = list.filter((lora) => hasUserTrigger(lora));
+      } else if (currentFilterRule === "no_trigger") {
+        list = list.filter((lora) => {
+          const tr = lora.db_info?.active_trigger || lora.db_info?.user_trigger || lora.db_info?.auto_trigger || lora.db_info?.trained_words || "";
+          return !tr || !tr.trim();
+        });
+      }
+
+      return list;
+    }
+
+    // --- 多选逻辑 ---
+    function toggleLoraSelection(loraName, index, options = {}) {
+      const { shiftKey = false, ctrlKey = false, force = null } = options;
+      const filtered = getFilteredLoras();
+
+      if (shiftKey && lastSelectedIndex >= 0 && index >= 0) {
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        for (let i = start; i <= end; i++) {
+          selectedLoras.add(filtered[i].name);
+        }
+      } else if (force === true) {
+        selectedLoras.add(loraName);
+      } else if (force === false) {
+        selectedLoras.delete(loraName);
+      } else if (ctrlKey) {
+        if (selectedLoras.has(loraName)) {
+          selectedLoras.delete(loraName);
+        } else {
+          selectedLoras.add(loraName);
+        }
+      } else {
+        // 普通单击 checkbox：切换单项
+        if (selectedLoras.has(loraName)) {
+          selectedLoras.delete(loraName);
+        } else {
+          selectedLoras.add(loraName);
+        }
+      }
+
+      if (index >= 0) {
+        lastSelectedIndex = index;
+      }
+      updateBatchToolbar();
+      renderView();
+    }
+
+    function selectAllFiltered() {
+      getFilteredLoras().forEach((l) => selectedLoras.add(l.name));
+      updateBatchToolbar();
+      renderView();
+    }
+
+    function deselectAll() {
+      selectedLoras.clear();
+      lastSelectedIndex = -1;
+      updateBatchToolbar();
+      renderView();
+    }
+
+    function invertSelection() {
+      const filtered = getFilteredLoras();
+      filtered.forEach((l) => {
+        if (selectedLoras.has(l.name)) {
+          selectedLoras.delete(l.name);
+        } else {
+          selectedLoras.add(l.name);
+        }
+      });
+      updateBatchToolbar();
+      renderView();
+    }
+
+    // --- 批量进度 UI ---
+    function showBatchProgress(title, total) {
+      const overlay = document.getElementById("batch-progress-overlay");
+      document.getElementById("batch-progress-title").innerText = title;
+      document.getElementById("batch-progress-status").innerText = "准备中...";
+      document.getElementById("batch-progress-bar").style.width = "0%";
+      document.getElementById("batch-progress-count").innerText = `0 / ${total}`;
+      document.getElementById("batch-progress-stats").innerText = "";
+      overlay.style.display = "flex";
+    }
+
+    function updateBatchProgress(current, total, status, statsText) {
+      const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+      document.getElementById("batch-progress-bar").style.width = `${pct}%`;
+      document.getElementById("batch-progress-count").innerText = `${current} / ${total}`;
+      document.getElementById("batch-progress-status").innerText = status;
+      if (statsText) {
+        document.getElementById("batch-progress-stats").innerText = statsText;
+      }
+    }
+
+    function hideBatchProgress() {
+      document.getElementById("batch-progress-overlay").style.display = "none";
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    function hasUserTrigger(lora) {
+      if (!lora || !lora.db_info) return false;
+      const ut = lora.db_info.user_trigger;
+      if (ut !== null && ut !== undefined) {
+        return true;
+      }
+      const profiles = lora.db_info.profiles;
+      if (Array.isArray(profiles) && profiles.length > 0) {
+        return true;
+      }
+      return false;
+    }
+
+    function showToast(message) {
+      let toastContainer = document.getElementById("toast-container");
+      if (!toastContainer) {
+        toastContainer = document.createElement("div");
+        toastContainer.id = "toast-container";
+        toastContainer.style.cssText = "position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10000; display: flex; flex-direction: column; gap: 8px; pointer-events: none;";
+        document.body.appendChild(toastContainer);
+      }
+      const toast = document.createElement("div");
+      toast.innerText = message;
+      toast.style.cssText = "background: rgba(30, 30, 46, 0.92); color: #89b4fa; padding: 8px 16px; border-radius: 6px; border: 1px solid #45475a; font-size: 13px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); opacity: 0; transition: opacity 0.2s, transform 0.2s; transform: translateY(10px); pointer-events: auto;";
+      toastContainer.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.style.opacity = "1";
+        toast.style.transform = "translateY(0)";
+      });
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(10px)";
+        setTimeout(() => toast.remove(), 200);
+      }, 2500);
+    }
+
+    // --- 渲染逻辑 ---
+    function renderView() {
+      const filtered = getFilteredLoras();
+      updateViewToggleUI();
+
+      if (viewMode === "icon") {
+        document.getElementById("icon-view").style.display = "grid";
+        document.getElementById("list-view").style.display = "none";
+        renderIconView(filtered);
+      } else {
+        document.getElementById("icon-view").style.display = "none";
+        document.getElementById("list-view").style.display = "table";
+        renderListView(filtered);
+      }
+    }
+
+    function renderIconView(loras) {
+      const container = document.getElementById("icon-view");
+      container.innerHTML = "";
+
+      loras.forEach((lora, index) => {
+        const card = document.createElement("div");
+        card.className = "lora-card";
+        if (selectedLoras.has(lora.name)) {
+          card.classList.add("selected");
+        }
+        if (hasUserTrigger(lora)) {
+          card.classList.add("has-user-trigger");
+        }
+        card.dataset.name = lora.name;
+
+        const imgHTML = lora.preview_image
+          ? `<img src="/xbhh/view/${encodeURIComponent(lora.preview_image)}" class="lora-img" loading="lazy">`
+          : `<div class="lora-img-placeholder">📄</div>`;
+
+        const basename = lora.name.split("/").pop().split("\\").pop();
+
+        // Create Checkbox
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "card-checkbox";
+        checkbox.checked = selectedLoras.has(lora.name);
+        checkbox.onclick = (e) => {
+          e.stopPropagation();
+          toggleLoraSelection(lora.name, index, { shiftKey: e.shiftKey });
+        };
+        card.appendChild(checkbox);
+
+        if (hasUserTrigger(lora)) {
+          const badge = document.createElement("span");
+          badge.className = "user-trigger-badge";
+          badge.textContent = "自定义";
+          badge.title = lora.db_info.user_trigger;
+          card.appendChild(badge);
+        }
+
+        // Card content
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = `
+            ${imgHTML}
+            <div class="lora-name" title="${basename}">${basename}</div>
+          `;
+        card.appendChild(wrapper);
+
+        // Card clicks and hovers
+        card.onclick = (e) => {
+          if (e.target.classList.contains("card-checkbox")) return;
+          if (e.shiftKey || e.ctrlKey || e.metaKey) {
+            toggleLoraSelection(lora.name, index, {
+              shiftKey: e.shiftKey,
+              ctrlKey: e.ctrlKey || e.metaKey,
+            });
+            return;
+          }
+          showDetailModal(lora.name);
+        };
+        card.onmouseenter = (e) => handleHoverStart(e, lora);
+        card.onmouseleave = handleHoverEnd;
+        card.oncontextmenu = (e) => handleContextMenu(e, lora.name);
+
+        container.appendChild(card);
+      });
+    }
+
+    function renderListView(loras) {
+      const headerRow = document.getElementById("list-header");
+      const tbody = document.getElementById("list-body");
+
+      // 重新构建表头 (含全选)
+      const allSelected = loras.length > 0 && loras.every((l) => selectedLoras.has(l.name));
+      headerRow.innerHTML = `
+          <th style="width: 40px; position: sticky; left: 0; z-index: 11;"><input type="checkbox" id="select-all-list" ${allSelected ? "checked" : ""} /></th>
+          <th style="min-width: 150px;"><div class="th-resizer"><span>文件名</span><div class="resize-handle"></div></div></th>
+        `;
+
+      const activeCols = getActiveColumns();
+      columnsConfig.forEach((col) => {
+        if (activeCols.includes(col.id)) {
+          headerRow.innerHTML += `<th style="min-width: 100px;"><div class="th-resizer"><span>${col.name}</span><div class="resize-handle"></div></div></th>`;
+        }
+      });
+
+      // 绑定全选事件
+      document.getElementById("select-all-list").onclick = (e) => {
+        const checked = e.target.checked;
+        if (checked) {
+          loras.forEach((l) => selectedLoras.add(l.name));
+        } else {
+          loras.forEach((l) => selectedLoras.delete(l.name));
+        }
+        updateBatchToolbar();
+        renderListView(loras);
+      };
+
+      // 构建主体
+      tbody.innerHTML = "";
+      loras.forEach((lora, index) => {
+        const tr = document.createElement("tr");
+        if (selectedLoras.has(lora.name)) {
+          tr.classList.add("selected");
+        }
+        if (hasUserTrigger(lora)) {
+          tr.classList.add("has-user-trigger");
+        }
+        const basename = lora.name.split("/").pop().split("\\").pop();
+
+        // TD Checkbox
+        const tdCheck = document.createElement("td");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = selectedLoras.has(lora.name);
+        checkbox.onclick = (e) => {
+          e.stopPropagation();
+          toggleLoraSelection(lora.name, index, { shiftKey: e.shiftKey });
+        };
+        tdCheck.appendChild(checkbox);
+        tr.appendChild(tdCheck);
+
+        // TD Filename
+        const tdName = document.createElement("td");
+        tdName.innerText = basename;
+        if (hasUserTrigger(lora)) {
+          tdName.title = `自定义触发词: ${lora.db_info.user_trigger || ''}`;
+          tdName.style.color = "#9cd2f8";
+        } else {
+          tdName.title = "";
+          tdName.style.color = "";
+        }
+        tr.appendChild(tdName);
+
+        activeCols.forEach((colId) => {
+          const col = columnsConfig.find((c) => c.id === colId);
+          if (col) {
+            const td = document.createElement("td");
+            td.innerText = col.get(lora);
+            tr.appendChild(td);
+          }
+        });
+
+        tr.onclick = (e) => {
+          if (e.target.type === "checkbox") return;
+          if (e.shiftKey || e.ctrlKey || e.metaKey) {
+            toggleLoraSelection(lora.name, index, {
+              shiftKey: e.shiftKey,
+              ctrlKey: e.ctrlKey || e.metaKey,
+            });
+            return;
+          }
+          showDetailModal(lora.name);
+        };
+        tr.onmouseenter = (e) => handleHoverStart(e, lora);
+        tr.onmouseleave = handleHoverEnd;
+        tr.oncontextmenu = (e) => handleContextMenu(e, lora.name);
+        tbody.appendChild(tr);
+      });
+
+      // 绑定列宽度拖拽事件
+      bindColumnResizers();
+    }
+
+    function bindColumnResizers() {
+      const resizers = document.querySelectorAll('.resize-handle');
+      let currentTh = null;
+      let startX = 0;
+      let startWidth = 0;
+
+      resizers.forEach(resizer => {
+        resizer.addEventListener('mousedown', function (e) {
+          e.stopPropagation();
+          currentTh = e.target.closest('th');
+          startX = e.pageX;
+          startWidth = currentTh.offsetWidth;
+          currentTh.classList.add('resizing');
+
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        });
+      });
+
+      function onMouseMove(e) {
+        if (!currentTh) return;
+        const diffX = e.pageX - startX;
+        const newWidth = Math.max(50, startWidth + diffX);
+        currentTh.style.width = newWidth + 'px';
+        currentTh.style.minWidth = newWidth + 'px';
+        currentTh.style.maxWidth = 'none'; // Allow it to expand fully when resized
+      }
+
+      function onMouseUp(e) {
+        if (currentTh) {
+          currentTh.classList.remove('resizing');
+          currentTh = null;
+        }
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      }
+    }
+
+    // --- Batch Action execution ---
+    async function handleBatchAction(action) {
+      if (selectedLoras.size === 0 || batchOperationRunning) return;
+
+      const names = Array.from(selectedLoras);
+      const actionLabels = {
+        auto: "批量提取高频词",
+        civitai: "批量拉取 Civitai",
+        reset: "批量重置触发词",
+      };
+
+      if (!confirm(`确定对 ${names.length} 个模型执行「${actionLabels[action] || action}」吗？`)) {
+        return;
+      }
+
+      batchOperationRunning = true;
+      showBatchProgress(actionLabels[action] || "批量处理", names.length);
+
+      let success = 0;
+      let failed = 0;
+      let skipped = 0;
+      let consecutiveFailures = 0;
+      let aborted = false;
+
+      try {
+        for (let i = 0; i < names.length; i++) {
+          const name = names[i];
+          const basename = name.split("/").pop().split("\\").pop();
+          updateBatchProgress(
+            i,
+            names.length,
+            `正在处理: ${basename}`,
+            `成功 ${success} · 失败 ${failed}`
+          );
+
+          const res = await postAPI("/xbhh/lora/trigger/batch-update", {
+            names: [name],
+            action,
+          });
+
+          if (res && res.success) {
+            if (res.skipped > 0) {
+              skipped += res.skipped;
+            } else if (action === "civitai" && res.failed > 0) {
+              failed += 1;
+              consecutiveFailures += 1;
+            } else if (res.success_count > 0 || action !== "civitai") {
+              success += 1;
+              consecutiveFailures = 0;
+            } else {
+              failed += 1;
+              consecutiveFailures += 1;
+            }
+
+            if (action === "civitai" && res.aborted) {
+              aborted = true;
+              break;
+            }
+            if (action === "civitai" && consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              aborted = true;
+              break;
+            }
+          } else {
+            failed += 1;
+            consecutiveFailures += 1;
+            if (action === "civitai" && consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+              aborted = true;
+              break;
+            }
+          }
+
+          if (action === "civitai" && i < names.length - 1) {
+            await sleep(CIVITAI_ITEM_DELAY_MS);
+          } else {
+            // 让出主线程，避免界面卡顿
+            await sleep(0);
+          }
+        }
+
+        updateBatchProgress(
+          names.length,
+          names.length,
+          aborted
+            ? `已中止：连续失败 ${MAX_CONSECUTIVE_FAILURES} 次`
+            : "处理完成",
+          `成功 ${success} · 失败 ${failed}${skipped ? ` · 跳过 ${skipped}` : ""}`
+        );
+
+        await sleep(600);
+        await loadLoras(currentFolder, true);
+
+        let msg = `批量操作完成\n成功: ${success}\n失败: ${failed}`;
+        if (skipped) msg += `\n跳过: ${skipped}`;
+        if (aborted) {
+          msg += `\n\n已因连续失败 ${MAX_CONSECUTIVE_FAILURES} 次自动停止，请检查网络或 Civitai 是否限流。`;
+        }
+        alert(msg);
+      } catch (err) {
+        console.error("Batch action error:", err);
+        alert("批量操作执行失败: " + (err.message || err));
+      } finally {
+        hideBatchProgress();
+        batchOperationRunning = false;
+      }
+    }
+
+    // --- 配置列与搜索 ---
+    function getActiveColumns() {
+      const cbx = document.querySelectorAll(
+        '#column-selector input[type="checkbox"]',
+      );
+      const res = [];
+      cbx.forEach((c) => {
+        if (c.checked) res.push(c.value);
+      });
+      return res;
+    }
+
+    function setupEvents() {
+      // --- 侧边栏折叠 ---
+      const btnToggleSidebar = document.getElementById("btn-toggle-sidebar");
+      const sidebar = document.getElementById("sidebar");
+      if (btnToggleSidebar && sidebar) {
+        btnToggleSidebar.onclick = () => {
+          if (sidebar.style.display === "none") {
+            sidebar.style.display = "flex";
+            btnToggleSidebar.classList.add("active");
+          } else {
+            sidebar.style.display = "none";
+            btnToggleSidebar.classList.remove("active");
+          }
+        };
+      }
+
+
+
+      document
+        .getElementById("search-input")
+        .addEventListener("input", renderView);
+
+      // 绑定规则过滤下拉框事件
+      const selectFilter = document.getElementById("filter-rule-select");
+      if (selectFilter) {
+        selectFilter.onchange = () => {
+          currentFilterRule = selectFilter.value;
+          renderView();
+        };
+      }
+
+      const btnToggleAuto = document.getElementById("btn-toggle-auto-trigger");
+      if (btnToggleAuto) {
+        btnToggleAuto.onclick = async () => {
+          disableAutoTrigger = !disableAutoTrigger;
+          localStorage.setItem("xbhh_disable_auto_trigger", disableAutoTrigger);
+          updateAutoTriggerBtnUI();
+          await postAPI("/xbhh/lora/settings", { disable_auto_trigger: disableAutoTrigger });
+          renderView();
+        };
+      }
+
+      document.getElementById("btn-select-all").onclick = selectAllFiltered;
+      document.getElementById("btn-select-invert").onclick = invertSelection;
+      document.getElementById("btn-select-none").onclick = deselectAll;
+      document.getElementById("btn-recalc-triggers").onclick = async () => {
+        const btn = document.getElementById("btn-recalc-triggers");
+        btn.disabled = true;
+        btn.innerText = "重算中...";
+        const res = await postAPI("/xbhh/lora/recalculate-auto-triggers", {});
+        btn.disabled = false;
+        btn.innerText = "🔄 重算高频词";
+        if (res && res.success) {
+          await loadLoras(currentFolder, true);
+          alert("已按训练标签最高频次重新计算自动触发词。");
+        } else {
+          alert("重算失败，请稍后重试。");
+        }
+      };
+
+      const btnToggleView = document.getElementById("btn-toggle-view");
+      if (btnToggleView) {
+        btnToggleView.onclick = () => {
+          viewMode = viewMode === "icon" ? "list" : "icon";
+          localStorage.setItem("xbhh_lora_view_mode", viewMode);
+          updateViewToggleUI();
+          renderView();
+        };
+      }
+
+      // --- 全局系统设置弹窗事件 ---
+      const settingsModal = document.getElementById("settings-modal");
+      const btnOpenSettings = document.getElementById("btn-open-settings");
+      const settingsModalClose = document.getElementById("settings-modal-close");
+      const settingsModalCancel = document.getElementById("settings-modal-cancel");
+      const settingsModalSave = document.getElementById("settings-modal-save");
+      const inputApiKey = document.getElementById("input-civitai-api-key");
+      const btnToggleKeyVis = document.getElementById("btn-toggle-key-visibility");
+      const btnTestKey = document.getElementById("btn-test-civitai-key");
+      const testKeyResult = document.getElementById("test-key-result");
+
+      // --- 悬浮大图尺寸调节绑定 ---
+      const inputHoverImageSize = document.getElementById("input-hover-image-size");
+      const previewSizeDisplay = document.getElementById("preview-size-display");
+      const btnResetPreviewSize = document.getElementById("btn-reset-preview-size");
+
+      if (inputHoverImageSize && previewSizeDisplay) {
+        inputHoverImageSize.oninput = () => {
+          previewSizeDisplay.innerText = `${inputHoverImageSize.value} px`;
+        };
+      }
+      if (btnResetPreviewSize) {
+        btnResetPreviewSize.onclick = () => {
+          if (inputHoverImageSize) inputHoverImageSize.value = 280;
+          if (previewSizeDisplay) previewSizeDisplay.innerText = "280 px";
+        };
+      }
+
+      if (btnOpenSettings) {
+        btnOpenSettings.onclick = () => {
+          inputApiKey.value = civitaiApiKey || "";
+          testKeyResult.innerText = "";
+          if (inputHoverImageSize) inputHoverImageSize.value = hoverImageSize;
+          if (previewSizeDisplay) previewSizeDisplay.innerText = `${hoverImageSize} px`;
+          settingsModal.style.display = "flex";
+        };
+      }
+
+      const closeSettingsModal = () => {
+        settingsModal.style.display = "none";
+      };
+      if (settingsModalClose) settingsModalClose.onclick = closeSettingsModal;
+      if (settingsModalCancel) settingsModalCancel.onclick = closeSettingsModal;
+
+      if (btnToggleKeyVis) {
+        btnToggleKeyVis.onclick = () => {
+          if (inputApiKey.type === "password") {
+            inputApiKey.type = "text";
+            btnToggleKeyVis.innerText = "🔒";
+          } else {
+            inputApiKey.type = "password";
+            btnToggleKeyVis.innerText = "👁️";
+          }
+        };
+      }
+
+      if (btnTestKey) {
+        btnTestKey.onclick = async () => {
+          const keyVal = inputApiKey.value.trim();
+          if (!keyVal) {
+            testKeyResult.style.color = "#fab387";
+            testKeyResult.innerText = "⚠️ 请先在上方输入框粘贴你的 Civitai API Token";
+            return;
+          }
+          // 简单格式校验：Civitai token 通常是 30+ 位字符
+          if (keyVal.length < 20) {
+            testKeyResult.style.color = "#ff8a8a";
+            testKeyResult.innerText = "❌ Token 格式看起来不对（太短了），请检查是否完整复制";
+            return;
+          }
+          testKeyResult.style.color = "#8ab4f8";
+          testKeyResult.innerText = "⏳ 正在验证 API Key（实测拉取一个真实模型的触发词，约 3-8 秒）...";
+          btnTestKey.disabled = true;
+          const res = await postAPI("/xbhh/lora/test-civitai", { civitai_api_key: keyVal });
+          btnTestKey.disabled = false;
+          if (res && res.message) {
+            testKeyResult.innerText = res.message;
+            // 颜色：成功=绿，条件通过（通道通但样例无触发词）=黄，失败=红
+            if (res.success) {
+              if (res.verified === false) {
+                // 条件通过：通道正常但未能拿到样例触发词
+                testKeyResult.style.color = "#f9e2af";
+              } else {
+                testKeyResult.style.color = "#aeeaae";
+              }
+            } else {
+              testKeyResult.style.color = "#ff8a8a";
+            }
+          } else {
+            testKeyResult.innerText = "❌ 测试失败，无法连接服务器（ComfyUI 后端是否已重启？）";
+            testKeyResult.style.color = "#ff8a8a";
+          }
+        };
+      }
+
+      if (settingsModalSave) {
+        settingsModalSave.onclick = async () => {
+          const newKey = inputApiKey.value.trim();
+
+          // 如果填了新 token 但还没测试过，提示用户先测试
+          if (newKey && newKey !== civitaiApiKey) {
+            const lastTestText = (testKeyResult.innerText || "").trim();
+            // ✅ 绿色=完全通过，⚠️ 黄色=条件通过（civitai.com 被墙但镜像连通）
+            const testedOk = lastTestText.startsWith("✅") || lastTestText.startsWith("⚠️");
+            if (!testedOk) {
+              const confirmed = confirm(
+                "你填了新的 API Key 但还没验证。\n\n" +
+                "建议先点「🧪 测试 API 连通性」确认 token 状态再保存。\n\n" +
+                "仍要直接保存吗？"
+              );
+              if (!confirmed) return;
+            }
+          }
+
+          civitaiApiKey = newKey;
+          localStorage.setItem("xbhh_civitai_api_key", newKey);
+          setCookie("xbhh_civitai_api_key", newKey);
+
+          if (inputHoverImageSize) {
+            hoverImageSize = parseInt(inputHoverImageSize.value, 10);
+            localStorage.setItem("xbhh_hover_image_size", hoverImageSize);
+          }
+
+          await postAPI("/xbhh/lora/settings", { civitai_api_key: newKey });
+          alert("配置保存成功！");
+          closeSettingsModal();
+        };
+      }
+
+      const btnCol = document.getElementById("btn-col-config");
+      const colSelectorDropdown = document.getElementById("column-selector");
+      if (btnCol && colSelectorDropdown) {
+        btnCol.onclick = (e) => {
+          e.stopPropagation();
+          colSelectorDropdown.style.display =
+            colSelectorDropdown.style.display === "none" || !colSelectorDropdown.style.display ? "flex" : "none";
+        };
+        document.querySelectorAll("#column-selector input").forEach((el) => {
+          el.onchange = renderView;
+        });
+
+        document.addEventListener("click", (e) => {
+          if (!btnCol.contains(e.target) && !colSelectorDropdown.contains(e.target)) {
+            colSelectorDropdown.style.display = "none";
+          }
+          const menu = document.getElementById("context-menu");
+          if (menu && !menu.contains(e.target)) {
+            menu.style.display = "none";
+          }
+        });
+      }
+
+      document.getElementById("menu-detail").onclick = () => {
+        document.getElementById("context-menu").style.display = "none";
+        if (selectedLoraName) {
+          showDetailModal(selectedLoraName);
+        }
+      };
+
+      document.getElementById("modal-close").onclick = () => {
+        document.getElementById("detail-modal").style.display = "none";
+      };
+      document.getElementById("detail-modal").onclick = (e) => {
+        if (e.target === document.getElementById("detail-modal")) {
+          document.getElementById("detail-modal").style.display = "none";
+        }
+      };
+      document.addEventListener("keydown", (e) => {
+        const modal = document.getElementById("detail-modal");
+        const statsModal = document.getElementById("stats-modal");
+        const settingsModal = document.getElementById("settings-modal");
+        const hkSettingsModal = document.getElementById("hitokoto-settings-modal");
+        const modalOpen = modal.style.display === "flex" || modal.style.display === "block";
+        const statsOpen = statsModal && statsModal.style.display === "flex";
+        const settingsOpen = settingsModal && settingsModal.style.display === "flex";
+        const hkSettingsOpen = hkSettingsModal && hkSettingsModal.style.display === "flex";
+        if (e.key === "Escape") {
+          // 优先级：系统设置 > 一言设置 > 统计 > 详情
+          if (settingsOpen) { settingsModal.style.display = "none"; return; }
+          if (hkSettingsOpen) { hkSettingsModal.style.display = "none"; return; }
+          if (statsOpen) { statsModal.style.display = "none"; return; }
+          if (modalOpen) { modal.style.display = "none"; }
+          return;
+        }
+        // 主界面（无弹窗打开）用 PageUp / PageDown 滚动 LoRA 卡片网格
+        if (!modalOpen && !statsOpen && !settingsOpen && !hkSettingsOpen
+            && (e.key === "PageUp" || e.key === "PageDown")) {
+          // 焦点在输入框/文本域/选择框时不拦截，保留原生编辑行为
+          const tag = (document.activeElement && document.activeElement.tagName) || "";
+          if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+          const content = document.getElementById("content-area");
+          if (!content) return;
+          e.preventDefault();
+          // 按可视区域高度的 90% 翻页，避免半屏卡顿
+          const step = content.clientHeight * 0.9;
+          content.scrollBy({ top: e.key === "PageUp" ? -step : step, behavior: "smooth" });
+        }
+      });
+
+      // 绑定单 LoRA 详情弹窗左侧 3 个分类的折叠/展开功能
+      const bindCollapsibleSection = (headerId, bodyId, iconId) => {
+        const header = document.getElementById(headerId);
+        const body = document.getElementById(bodyId);
+        const icon = document.getElementById(iconId);
+        if (header && body && icon) {
+          header.onclick = () => {
+            const isOpen = body.style.display !== "none";
+            body.style.display = isOpen ? "none" : "block";
+            icon.innerText = isOpen ? "▶" : "▼";
+          };
+        }
+      };
+      bindCollapsibleSection("sec-basic-header", "sec-basic-body", "sec-basic-icon");
+      bindCollapsibleSection("sec-train-header", "sec-train-body", "sec-train-icon");
+      bindCollapsibleSection("sec-misc-header", "sec-misc-body", "sec-misc-icon");
+    }
+
+    // --- 悬浮 1.5s 大图与参数统一融合预览 ---
+    function handleHoverStart(e, lora) {
+      clearTimeout(hoverTimer);
+      const targetEl = e.currentTarget;
+
+      // 统一 1.5 秒悬浮触发大图与参数合并卡片
+      hoverTimer = setTimeout(() => {
+        showHoverCard(targetEl, lora);
+      }, 1500);
+    }
+
+    function handleHoverEnd() {
+      clearTimeout(hoverTimer);
+      hideHoverCard();
+    }
+
+    function showHoverCard(element, lora) {
+      const popover = document.getElementById("image-preview-popover");
+      const img = document.getElementById("image-preview-img");
+      const details = document.getElementById("image-preview-details");
+      if (!popover || !img || !details || !lora) return;
+
+      if (lora.preview_image) {
+        img.src = `/xbhh/view/${encodeURIComponent(lora.preview_image)}`;
+        img.style.display = "block";
+        img.style.maxHeight = `${hoverImageSize}px`;
+      } else {
+        img.style.display = "none";
+        img.src = "";
+      }
+      popover.style.width = `${Math.max(320, hoverImageSize + 50)}px`;
+
+      const tp = lora.training_params || {};
+      let html = `<h4 style="margin:2px 0 8px 0; color:#fff; font-size:14px; border-bottom:1px solid #444; padding-bottom:5px;">${lora.name.split("/").pop().split("\\").pop()}</h4>`;
+      html += _row("基础模型", tp.base_model || "-");
+      html += _row("类型", tp.network_module?.replace("networks.", "") || "-");
+      html += _row("Rank (Dim)", tp.network_dim || "-");
+      html += _row("学习率", tp.unet_lr || "-");
+      html += _row("Epochs", tp.num_epochs || "-");
+      html += _row("分辨率", tp.resolution || "-");
+      const trig = lora.db_info?.active_trigger || "";
+      if (trig) {
+        html += _row("激活触发词", `<span style="color:#aeeaae">${trig.substring(0, 45)}${trig.length > 45 ? "..." : ""}</span>`);
+      }
+      details.innerHTML = html;
+
+      popover.style.display = "flex";
+      popover.style.opacity = "1";
+
+      const rect = element.getBoundingClientRect();
+      const popWidth = popover.offsetWidth || 340;
+      const popHeight = popover.offsetHeight || 420;
+
+      // 优先位置：元素右侧
+      let left = rect.right + 12;
+      let top = rect.top;
+
+      // 视口水平碰撞检测：若右侧超屏则改左侧
+      if (left + popWidth > window.innerWidth - 10) {
+        left = rect.left - popWidth - 12;
+      }
+      if (left < 10) {
+        left = 10;
+      }
+
+      // 视口垂直碰撞检测
+      if (top + popHeight > window.innerHeight - 10) {
+        top = window.innerHeight - popHeight - 10;
+      }
+      if (top < 10) {
+        top = 10;
+      }
+
+      popover.style.left = left + "px";
+      popover.style.top = top + "px";
+    }
+
+    function hideHoverCard() {
+      const popover = document.getElementById("image-preview-popover");
+      if (popover) {
+        popover.style.display = "none";
+        popover.style.opacity = "0";
+      }
+    }
+
+    function _row(label, val) {
+      return `<div class="summary-row"><span class="summary-label">${label}</span><span class="summary-value">${val}</span></div>`;
+    }
+
+    // --- 右键菜单 ---
+    function handleContextMenu(e, loraName) {
+      e.preventDefault();
+      selectedLoraName = loraName;
+
+      const menu = document.getElementById("context-menu");
+      menu.style.display = "block";
+
+      let left = e.clientX;
+      let top = e.clientY;
+      if (left + 150 > window.innerWidth) left -= 150;
+      if (top + 80 > window.innerHeight) top -= 80;
+
+      menu.style.left = left + "px";
+      menu.style.top = top + "px";
+    }
+
+    // --- Click pill to append to trigger editor ---
+    function addWordToTriggerInput(word) {
+      const presetTriggers = document.querySelectorAll(".preset-card-trigger");
+      let input = document.getElementById("modal-trigger-input");
+      if (presetTriggers.length > 0) {
+        input = presetTriggers[presetTriggers.length - 1];
+      }
+      let val = input.value.trim();
+
+      // Split existing tags by comma
+      let existing = val ? val.split(/[\,\，]+/).map(t => t.trim()).filter(t => t) : [];
+      if (!existing.includes(word)) {
+        existing.push(word);
+      }
+
+      input.value = existing.join(", ");
+      input.dispatchEvent(new Event("change"));
+      input.focus();
+    }
+
+    // --- 详细参数弹窗 ---
+    async function showDetailModal(loraName) {
+      const modal = document.getElementById("detail-modal");
+      modal.style.display = "flex";
+
+      // Reset contents
+      document.getElementById("modal-title").innerText = "加载中...";
+      document.getElementById("md-tags").innerHTML = "加载中...";
+      document.getElementById("modal-trigger-input").value = "";
+      document.getElementById("auto-trigger-pills").innerHTML = "";
+      document.getElementById("civitai-trigger-pills").innerHTML = "";
+      // 清空分类输入框，避免上次数据残留
+      const catInputReset = document.getElementById("modal-category-input");
+      if (catInputReset) catInputReset.value = "";
+      const catHintReset = document.getElementById("modal-category-hint");
+      if (catHintReset) catHintReset.textContent = "";
+
+      [
+        "md-base",
+        "md-hash",
+        "md-size",
+        "md-rel-path",
+        "md-module",
+        "md-dim",
+        "md-epoch",
+        "md-res",
+        "md-lr",
+        "md-te-lr",
+        "md-opt",
+        "md-sch",
+        "md-batch",
+        "md-clip",
+        "md-raw",
+      ].forEach((id) => {
+        document.getElementById(id).innerText = "-";
+      });
+
+      // 获取完整数据
+      const data = await fetchAPI(
+        `/xbhh/lora/metadata/${encodeURIComponent(loraName)}`,
+      );
+      if (!data || data.error) {
+        document.getElementById("modal-title").innerText = "无法加载元数据";
+        return;
+      }
+
+      const tp = data.training_params || {};
+      const tags = data.tag_frequency || {};
+      const dbInfo = data.db_info || {};
+      const fileInfo = data.file_info || {};
+
+      document.getElementById("modal-title").innerText = loraName
+        .split("/")
+        .pop()
+        .split("\\")
+        .pop();
+
+      // 填基本信息
+      document.getElementById("md-base").innerText = tp.base_model || "未知";
+      document.getElementById("md-hash").innerText = dbInfo.hash || tp.model_hash || "-";
+      document.getElementById("md-size").innerText = formatFileSize(fileInfo.size);
+      document.getElementById("md-rel-path").innerText = loraName || "-";
+
+      // 填训练参数
+      document.getElementById("md-module").innerText =
+        tp.network_module?.replace("networks.", "") || "-";
+      const alpha = tp.network_alpha ? ` / ${tp.network_alpha}` : "";
+      document.getElementById("md-dim").innerText =
+        (tp.network_dim || "-") + alpha;
+      document.getElementById("md-epoch").innerText = tp.num_epochs || "-";
+      document.getElementById("md-res").innerText = tp.resolution || "-";
+      document.getElementById("md-lr").innerText =
+        tp.unet_lr || tp.learning_rate || "-";
+      document.getElementById("md-te-lr").innerText =
+        tp.text_encoder_lr || "-";
+      document.getElementById("md-opt").innerText = tp.optimizer || "-";
+      document.getElementById("md-sch").innerText = tp.lr_scheduler || "-";
+      document.getElementById("md-batch").innerText = tp.batch_size || "-";
+      document.getElementById("md-clip").innerText = tp.clip_skip || "-";
+
+      document.getElementById("md-raw").innerText = JSON.stringify(
+        data.raw_metadata,
+        null,
+        2,
+      );
+
+      // ── 渲染 LoRA 预览图 ──────────────────────────────────────────────
+      const previewHasImg = document.getElementById("lora-preview-has-img");
+      const previewNoImg = document.getElementById("lora-preview-no-img");
+      const previewImg = document.getElementById("lora-preview-img");
+      const fileInput = document.getElementById("lora-img-file-input");
+
+      // 从列表数据查找已有预览图（本地缓存）
+      const loraObj = currentLoras.find(l => l.name === loraName);
+      let currentPreviewImage = loraObj?.preview_image || null;
+
+      function renderPreviewArea() {
+        if (currentPreviewImage) {
+          previewImg.src = `/xbhh/view/${encodeURIComponent(currentPreviewImage)}?t=${Date.now()}`;
+          previewHasImg.style.display = "block";
+          previewNoImg.style.display = "none";
+        } else {
+          previewHasImg.style.display = "none";
+          previewNoImg.style.display = "flex";
+        }
+      }
+      renderPreviewArea();
+
+      // 点击图片 or 上传区 → 触发文件选择
+      previewHasImg.onclick = () => fileInput.click();
+      previewNoImg.onclick = () => fileInput.click();
+
+      // 删除预览图
+      const deleteBtn = document.getElementById("lora-preview-delete-btn");
+      deleteBtn.onclick = async (e) => {
+        e.stopPropagation(); // 避免触发"替换图片"
+        if (!confirm("确定删除该 LoRA 的预览图吗？")) return;
+        try {
+          const result = await postAPI("/xbhh/lora/delete-image", { name: loraName });
+          if (result && result.success) {
+            currentPreviewImage = null;
+            // 同步本地缓存并刷新主列表
+            if (loraObj) loraObj.preview_image = null;
+            renderPreviewArea();
+            renderView();
+            showToast("🗑️ 预览图已删除");
+          } else {
+            showToast("❌ 删除失败: " + ((result && result.error) || "未知错误"));
+          }
+        } catch (e) {
+          showToast("❌ 删除异常: " + e.message);
+        }
+      };
+
+      // 悬停效果
+      previewNoImg.onmouseenter = () => { previewNoImg.style.borderColor = "rgba(139,180,248,0.6)"; };
+      previewNoImg.onmouseleave = () => { previewNoImg.style.borderColor = "rgba(255,255,255,0.2)"; };
+
+      // 文件选择后上传
+      fileInput.value = ""; // 重置，确保相同文件也能触发 change
+      fileInput.onchange = async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append("name", loraName);
+        formData.append("image", file, file.name);
+
+        previewHasImg.style.opacity = "0.5";
+        previewNoImg.style.opacity = "0.5";
+
+        try {
+          const res = await fetch("/xbhh/lora/upload-image", {
+            method: "POST",
+            body: formData
+          });
+          const result = await res.json();
+          if (result.success) {
+            currentPreviewImage = result.preview_image;
+            // 同步本地缓存并刷新主列表
+            if (loraObj) loraObj.preview_image = result.preview_image;
+            renderPreviewArea();
+            renderView();
+            showToast("✅ 预览图已保存");
+          } else {
+            showToast("❌ 上传失败: " + (result.error || "未知错误"));
+          }
+        } catch (e) {
+          showToast("❌ 上传异常: " + e.message);
+        } finally {
+          previewHasImg.style.opacity = "1";
+          previewNoImg.style.opacity = "1";
+        }
+      };
+      // ── 预览图结束 ────────────────────────────────────────────────────
+
+      // 填入自定义输入框
+      document.getElementById("modal-trigger-input").value = dbInfo.user_trigger || "";
+
+      // 填充分类标签（dbInfo.category 已是「用户标注 > 路径推断」的最终值）
+      const catInput = document.getElementById("modal-category-input");
+      const catHint = document.getElementById("modal-category-hint");
+      const catList = document.getElementById("xbhh-category-list");
+      // 标记是否为路径推断值（用户未手动标注时，显示提示）
+      const userCat = dbInfo.category || "";
+      catInput.value = userCat;
+      catInput.dataset.inferred = userCat ? "0" : "1";
+      if (catHint) {
+        catHint.textContent = userCat ? "" : "（自动推断，可手动覆盖）";
+        catHint.style.color = "#6c7086";
+      }
+      // 异步加载预置 + 已用分类列表
+      try {
+        const catRes = await fetch("/xbhh/lora/categories");
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          catList.innerHTML = "";
+          (catData.categories || []).forEach(c => {
+            const opt = document.createElement("option");
+            opt.value = c;
+            catList.appendChild(opt);
+          });
+        }
+      } catch (e) { /* 忽略，datalist 为空也能输入 */ }
+      // 分类变更时自动保存
+      catInput.onchange = async () => {
+        const val = catInput.value.trim();
+        try {
+          await fetch("/xbhh/lora/category/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: loraName, category: val })
+          });
+          catInput.dataset.inferred = "0";
+          if (catHint) catHint.textContent = "";
+          showToast(val ? `🏷️ 分类已设为「${val}」` : "🏷️ 已清除自定义分类（回退路径推断）");
+          // 同步本地缓存（用 currentLoras 而非 allLoras）
+          const loraObj = currentLoras.find(l => l.name === loraName);
+          if (loraObj) {
+            if (!loraObj.db_info) loraObj.db_info = {};
+            loraObj.db_info.category = val || (() => {
+              const parts = (loraName || "").split(/[\\/]+/).filter(Boolean);
+              return parts.length >= 2 ? parts[0] : "";
+            })();
+          }
+        } catch (e) {
+          showToast("❌ 分类保存失败: " + e.message);
+        }
+      };
+
+      // 渲染 TF-IDF 高频词推荐
+      const autoBox = document.getElementById("auto-trigger-pills");
+      autoBox.innerHTML = "";
+      const autoTriggerWords = dbInfo.auto_trigger ? dbInfo.auto_trigger.split(/[\,\，]+/).map(t => t.trim()) : [];
+      if (autoTriggerWords.length === 0) {
+        autoBox.innerHTML = "<span style='color:#666; font-size:11px;'>暂无高频标签，后台扫描后会自动计算...</span>";
+      } else {
+        autoTriggerWords.forEach(word => {
+          const pill = document.createElement("span");
+          pill.className = "clickable-pill";
+          pill.innerText = word;
+          pill.onclick = () => addWordToTriggerInput(word);
+          autoBox.appendChild(pill);
+        });
+      }
+
+      // 渲染 Civitai 推荐词
+      const civitBox = document.getElementById("civitai-trigger-pills");
+      civitBox.innerHTML = "";
+      const renderCivitaiPills = (wordsStr) => {
+        civitBox.innerHTML = "";
+        const words = wordsStr ? wordsStr.split(/[\,\，]+/).map(t => t.trim()) : [];
+        if (words.length === 0) {
+          civitBox.innerHTML = "<span style='color:#666; font-size:11px;'>暂未拉取Civitai推荐词</span>";
+        } else {
+          words.forEach(word => {
+            const pill = document.createElement("span");
+            pill.className = "clickable-pill civit";
+            pill.innerText = word;
+            pill.onclick = () => addWordToTriggerInput(word);
+            civitBox.appendChild(pill);
+          });
+        }
+      };
+      renderCivitaiPills(dbInfo.trained_words);
+
+      // 标签频率折叠头控制
+      const tagHeader = document.getElementById("tag-freq-toggle-header");
+      const tagContainer = document.getElementById("md-tags-container");
+      const tagIcon = document.getElementById("tag-freq-toggle-icon");
+      let isTagFreqOpen = false;
+
+      tagHeader.onclick = () => {
+        isTagFreqOpen = !isTagFreqOpen;
+        tagContainer.style.display = isTagFreqOpen ? "block" : "none";
+        tagHeader.querySelector("span").innerText = isTagFreqOpen ? "▼ 标签使用频率 (Tag Frequency)" : "▶ 标签使用频率 (Tag Frequency)";
+        tagIcon.innerText = isTagFreqOpen ? "点击收起" : "点击展开";
+      };
+
+      // 渲染 提示词预设 Profiles (卡片化 + 多选组合)
+      const presetContainer = document.getElementById("preset-cards-container");
+      const singleTriggerWrapper = document.getElementById("single-trigger-wrapper");
+      let currentProfiles = Array.isArray(dbInfo.profiles) ? [...dbInfo.profiles] : [];
+
+      currentProfiles.forEach(p => {
+        if (p.enabled === undefined) p.enabled = true;
+      });
+
+      const saveAllProfilesAndTriggers = async () => {
+        await postAPI("/xbhh/lora/profiles/update", {
+          name: loraName,
+          profiles: currentProfiles
+        });
+
+        let combinedTrigger = null;
+        if (currentProfiles.length > 0) {
+          combinedTrigger = currentProfiles
+            .filter(p => p.enabled && p.trigger && p.trigger.trim())
+            .map(p => p.trigger.trim())
+            .join(", ");
+          // 如果所有预设触发词均为空，不改变已存在的自定义值
+        } else {
+          // 所有预设已删除，回到单行输入模式，使用 null 表示未自定义
+          const inputVal = document.getElementById("modal-trigger-input").value.trim();
+          combinedTrigger = inputVal || null;
+        }
+
+        await postAPI("/xbhh/lora/trigger/update", {
+          name: loraName,
+          hash: dbInfo.hash,
+          trigger: combinedTrigger
+        });
+
+        // 同步本地 currentLoras 状态并实时刷新主页面视图
+        const localItem = currentLoras.find(l => l.name === loraName);
+        if (localItem) {
+          if (!localItem.db_info) localItem.db_info = {};
+          localItem.db_info.profiles = [...currentProfiles];
+          localItem.db_info.user_trigger = combinedTrigger;
+          localItem.db_info.active_trigger = combinedTrigger || localItem.db_info.auto_trigger || localItem.db_info.trained_words || "";
+          buildTrie(currentLoras);
+          renderView();
+        }
+      };
+
+      const renderPresetCards = () => {
+        presetContainer.innerHTML = "";
+
+        if (currentProfiles.length === 0) {
+          singleTriggerWrapper.style.display = "block";
+        } else {
+          singleTriggerWrapper.style.display = "none";
+
+          currentProfiles.forEach((prof, idx) => {
+            const card = document.createElement("div");
+            card.className = "preset-card";
+            card.style.cssText = "background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 6px 10px; transition: all 0.2s; cursor: default;";
+
+            let isOpen = prof._collapsed !== undefined ? !prof._collapsed : true;
+
+            // Card Header
+            const header = document.createElement("div");
+            header.style.cssText = "display: flex; align-items: center; gap: 6px;";
+
+            // Drag handle (仅手柄元素开启 draggable，彻底绝强 card 及其他子元素被激活拖拽)
+            const dragHandle = document.createElement("span");
+            dragHandle.innerText = "⣿";
+            dragHandle.title = "按住拖拽调整预设顺序";
+            dragHandle.draggable = true;
+            dragHandle.style.cssText = "cursor: grab; user-select: none; color: #7f849c; font-size: 14px; width: 14px; text-align: center;";
+
+            dragHandle.ondragstart = (e) => {
+              e.dataTransfer.setData("text/plain", idx.toString());
+              card.style.opacity = "0.4";
+            };
+
+            dragHandle.ondragend = () => {
+              card.style.opacity = "1";
+              document.querySelectorAll(".preset-card").forEach(c => c.style.borderTop = "");
+            };
+
+            const toggleIcon = document.createElement("span");
+            toggleIcon.innerText = isOpen ? "▼" : "▶";
+            toggleIcon.style.cssText = "cursor: pointer; user-select: none; color: #8ab4f8; font-size: 11px; width: 12px;";
+            toggleIcon.title = "点击展开/折叠该预设";
+
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = !!prof.enabled;
+            checkbox.title = "勾选以启用并组合此预设";
+            checkbox.style.cssText = "width: 15px; height: 15px; cursor: pointer; accent-color: #2d78f5;";
+
+            const nameInput = document.createElement("input");
+            nameInput.type = "text";
+            nameInput.value = prof.name || `预设 ${idx + 1}`;
+            nameInput.placeholder = "预设名称...";
+            nameInput.style.cssText = "flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; color: #fff; padding: 3px 8px; font-size: 12px; font-weight: bold;";
+
+            // Quick order buttons: Up / Down
+            const upBtn = document.createElement("button");
+            upBtn.className = "btn";
+            upBtn.innerText = "▲";
+            upBtn.title = "向上移动预设";
+            upBtn.disabled = idx === 0;
+            upBtn.style.cssText = `padding: 1px 4px; font-size: 9px; height: 22px; opacity: ${idx === 0 ? '0.3' : '0.8'};`;
+
+            const downBtn = document.createElement("button");
+            downBtn.className = "btn";
+            downBtn.innerText = "▼";
+            downBtn.title = "向下移动预设";
+            downBtn.disabled = idx === currentProfiles.length - 1;
+            downBtn.style.cssText = `padding: 1px 4px; font-size: 9px; height: 22px; opacity: ${idx === currentProfiles.length - 1 ? '0.3' : '0.8'};`;
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "btn";
+            delBtn.innerText = "🗑️";
+            delBtn.title = "删除此预设";
+            delBtn.style.cssText = "padding: 1px 6px; font-size: 11px; height: 22px; background: rgba(255, 80, 80, 0.2); border-color: rgba(255, 80, 80, 0.4); color: #ff8888;";
+
+            header.appendChild(dragHandle);
+            header.appendChild(toggleIcon);
+            header.appendChild(checkbox);
+            header.appendChild(nameInput);
+            header.appendChild(upBtn);
+            header.appendChild(downBtn);
+            header.appendChild(delBtn);
+
+            // Card Body
+            const body = document.createElement("div");
+            body.style.cssText = `margin-top: 6px; display: ${isOpen ? 'block' : 'none'};`;
+
+            const textarea = document.createElement("textarea");
+            textarea.className = "trigger-textarea preset-card-trigger";
+            textarea.value = prof.trigger || "";
+            textarea.placeholder = "输入该预设的提示词 (多个用逗号分隔)...";
+            textarea.style.cssText = "width: 100%; height: 48px; font-size: 11px; box-sizing: border-box;";
+
+            body.appendChild(textarea);
+            card.appendChild(header);
+            card.appendChild(body);
+            presetContainer.appendChild(card);
+
+            // Drag and Drop Target Events on Card
+            card.ondragover = (e) => {
+              e.preventDefault();
+              card.style.borderTop = "2px solid #89b4fa";
+            };
+
+            card.ondragleave = () => {
+              card.style.borderTop = "";
+            };
+
+            card.ondrop = async (e) => {
+              e.preventDefault();
+              card.style.borderTop = "";
+              const fromIdxStr = e.dataTransfer.getData("text/plain");
+              if (!fromIdxStr) return;
+              const fromIdx = parseInt(fromIdxStr, 10);
+              const toIdx = idx;
+              if (!isNaN(fromIdx) && fromIdx !== toIdx && fromIdx >= 0 && fromIdx < currentProfiles.length) {
+                const movedItem = currentProfiles.splice(fromIdx, 1)[0];
+                currentProfiles.splice(toIdx, 0, movedItem);
+                await saveAllProfilesAndTriggers();
+                renderPresetCards();
+                showToast(`已将 [${movedItem.name}] 调整至位置 ${toIdx + 1}`);
+              }
+            };
+
+            // Event Listeners
+            toggleIcon.onclick = () => {
+              isOpen = !isOpen;
+              prof._collapsed = !isOpen;
+              body.style.display = isOpen ? "block" : "none";
+              toggleIcon.innerText = isOpen ? "▼" : "▶";
+            };
+
+            checkbox.onchange = async () => {
+              prof.enabled = checkbox.checked;
+              await saveAllProfilesAndTriggers();
+            };
+
+            nameInput.onchange = async () => {
+              prof.name = nameInput.value.trim() || `预设 ${idx + 1}`;
+              await saveAllProfilesAndTriggers();
+            };
+
+            textarea.onchange = async () => {
+              prof.trigger = textarea.value.trim();
+              await saveAllProfilesAndTriggers();
+            };
+
+            upBtn.onclick = async () => {
+              if (idx > 0) {
+                const temp = currentProfiles[idx - 1];
+                currentProfiles[idx - 1] = currentProfiles[idx];
+                currentProfiles[idx] = temp;
+                await saveAllProfilesAndTriggers();
+                renderPresetCards();
+              }
+            };
+
+            downBtn.onclick = async () => {
+              if (idx < currentProfiles.length - 1) {
+                const temp = currentProfiles[idx + 1];
+                currentProfiles[idx + 1] = currentProfiles[idx];
+                currentProfiles[idx] = temp;
+                await saveAllProfilesAndTriggers();
+                renderPresetCards();
+              }
+            };
+
+            delBtn.onclick = async () => {
+              const hasTrigger = (prof.trigger || "").trim() !== "";
+              const shouldDelete = !hasTrigger || confirm(`确定要删除预设 [${prof.name}] 吗？`);
+              if (shouldDelete) {
+                currentProfiles.splice(idx, 1);
+                if (currentProfiles.length === 0) {
+                  document.getElementById("modal-trigger-input").value = "";
+                }
+                await saveAllProfilesAndTriggers();
+                renderPresetCards();
+                showToast(`已删除预设 [${prof.name}]`);
+              }
+            };
+          });
+        }
+      };
+      renderPresetCards();
+
+      // 点击 ➕ 添加预设 按钮
+      document.getElementById("btn-add-preset-modal").onclick = async () => {
+        const newProfName = `预设 ${currentProfiles.length + 1}`;
+        currentProfiles.push({
+          id: "prof_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+          name: newProfName,
+          trigger: "",
+          enabled: true
+        });
+        await saveAllProfilesAndTriggers();
+        renderPresetCards();
+        showToast(`已添加新预设 [${newProfName}]`);
+      };
+
+      // 标签频率
+      const tagBox = document.getElementById("md-tags");
+      tagBox.innerHTML = "";
+      const tagKeys = Object.keys(tags);
+      if (tagKeys.length === 0) {
+        tagBox.innerHTML =
+          "<span style='color:#888;'>未找到标签频率数据</span>";
+      } else {
+        tagKeys.forEach((tag) => {
+          const pill = document.createElement("div");
+          pill.className = "tag-pill";
+          pill.innerHTML = `${tag} <span class="tag-count">${tags[tag]}</span>`;
+          tagBox.appendChild(pill);
+        });
+      }
+
+      // 保存触发词绑定
+      document.getElementById("btn-save-trigger").onclick = async () => {
+        const val = document.getElementById("modal-trigger-input").value.trim();
+        document.getElementById("btn-save-trigger").innerText = "保存中...";
+        const res = await postAPI("/xbhh/lora/trigger/update", {
+          name: loraName,
+          hash: dbInfo.hash,
+          trigger: val
+        });
+        document.getElementById("btn-save-trigger").innerText = "保存触发词";
+        if (res && res.success) {
+          // Update local object
+          const localItem = currentLoras.find(l => l.name === loraName);
+          if (localItem) {
+            if (!localItem.db_info) localItem.db_info = {};
+            localItem.db_info.user_trigger = val;
+            localItem.db_info.active_trigger = val;
+            buildTrie(currentLoras);
+            renderView();
+          }
+          alert("触发词保存成功！");
+        } else {
+          alert("保存失败");
+        }
+      };
+
+      // 清除/重置绑定 (彻底清理自定义触发词及所有预设，恢复为 NULL 默认自动提示词状态)
+      document.getElementById("btn-reset-trigger").onclick = async () => {
+        document.getElementById("modal-trigger-input").value = "";
+        currentProfiles = [];
+        renderPresetCards();
+        await postAPI("/xbhh/lora/profiles/update", {
+          name: loraName,
+          profiles: []
+        });
+        const res = await postAPI("/xbhh/lora/trigger/update", {
+          name: loraName,
+          hash: dbInfo.hash,
+          trigger: null
+        });
+        if (res && res.success) {
+          const localItem = currentLoras.find(l => l.name === loraName);
+          if (localItem) {
+            if (!localItem.db_info) localItem.db_info = {};
+            localItem.db_info.profiles = [];
+            localItem.db_info.user_trigger = null;
+            localItem.db_info.active_trigger = dbInfo.auto_trigger || dbInfo.trained_words || "";
+            buildTrie(currentLoras);
+            renderView();
+          }
+          alert("自定义触发词与预设已重置，已恢复为默认自动提取提示词状态。");
+        }
+      };
+
+      // 弹窗中Civitai拉取绑定
+      document.getElementById("btn-fetch-civitai-modal").onclick = async () => {
+        const btn = document.getElementById("btn-fetch-civitai-modal");
+        btn.innerText = "拉取中...";
+        btn.disabled = true;
+        const res = await postAPI("/xbhh/lora/fetch-civitai", {
+          name: loraName,
+          hash: dbInfo.hash
+        });
+        btn.innerText = "🌐 拉取推荐词";
+        btn.disabled = false;
+        if (res && res.success) {
+          const trainedWords = res.trained_words;
+          if (trainedWords) {
+            document.getElementById("modal-trigger-input").value = trainedWords;
+            renderCivitaiPills(trainedWords);
+
+            // Update local state
+            const localItem = currentLoras.find(l => l.name === loraName);
+            if (localItem) {
+              localItem.db_info.trained_words = trainedWords;
+              localItem.db_info.user_trigger = trainedWords;
+              localItem.db_info.active_trigger = trainedWords;
+              buildTrie(currentLoras);
+              renderView();
+            }
+            alert(`Civitai 推荐词拉取并保存成功！\n推荐词: ${trainedWords}`);
+          } else {
+            alert("Civitai未找到该模型的推荐触发词，或未填写。");
+          }
+        } else {
+          alert("网络错误，Civitai 拉取推荐词失败。");
+        }
+      };
+    }
+
+    // --- 1. 动态网页标签标题 (Melodify 在线/离开 自动切换) ---
+    (function initDynamicTabTitle() {
+      const originalTitle = "xbhh • LoRA 模型全景控制台";
+      let titleTimer = null;
+
+      window.addEventListener("blur", () => {
+        document.title = "(つ 皿 ⊂) 崩溃啦！快回来~ | xbhh LoRA";
+      });
+
+      window.addEventListener("focus", () => {
+        document.title = "( ╰(‵□′)╯ 欢迎回来！ ) | xbhh LoRA";
+        clearTimeout(titleTimer);
+        titleTimer = setTimeout(() => {
+          document.title = originalTitle;
+        }, 2000);
+      });
+    })();
+
+    // --- 2. 梦幻飘雪/花瓣背景 Canvas 效果 ---
+    (function initSnowCanvas() {
+      const canvas = document.createElement("canvas");
+      canvas.id = "snow-canvas";
+      canvas.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:1;";
+      document.body.appendChild(canvas);
+
+      const ctx = canvas.getContext("2d");
+      let width = canvas.width = window.innerWidth;
+      let height = canvas.height = window.innerHeight;
+
+      window.addEventListener("resize", () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+      });
+
+      const flakes = [];
+      const numFlakes = 95;
+
+      for (let i = 0; i < numFlakes; i++) {
+        flakes.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: Math.random() * 2.5 + 1.0,
+          d: Math.random() * 1 + 0.5,
+          opacity: Math.random() * 0.85 + 0.35,
+          step: Math.random() * 0.05,
+          color: Math.random() > 0.3 ? "rgba(243, 166, 233, " : "rgba(255, 255, 255, "
+        });
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let f of flakes) {
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2, true);
+          ctx.fillStyle = f.color + f.opacity + ")";
+          ctx.shadowBlur = f.r * 4;
+          ctx.shadowColor = "rgba(243, 166, 233, 0.6)";
+          ctx.fill();
+
+          f.y += Math.cos(f.d) + 1.2 + f.r / 2;
+          f.x += Math.sin(f.step) * 0.7;
+          f.step += 0.01;
+
+          if (f.y > height + 10) {
+            f.y = -10;
+            f.x = Math.random() * width;
+          }
+        }
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+
+    // --- 3. 自定义光标跟随环与微光特效 ---
+    (function initCustomCursor() {
+      const follower = document.createElement("div");
+      follower.id = "cursor-follower";
+      document.body.appendChild(follower);
+
+      let mouseX = 0, mouseY = 0;
+      let followerX = 0, followerY = 0;
+
+      window.addEventListener("mousemove", (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      });
+
+      function animateCursor() {
+        followerX += (mouseX - followerX) * 0.2;
+        followerY += (mouseY - followerY) * 0.2;
+        follower.style.left = followerX + "px";
+        follower.style.top = followerY + "px";
+        requestAnimationFrame(animateCursor);
+      }
+      animateCursor();
+    })();
+    // --- 4. Melodify 风格 环形滚动进度 Back-To-Top 按钮 ---
+    function initBackToTop() {
+      const contentArea = document.getElementById("content-area");
+      const backToTopBtn = document.getElementById("back-to-top");
+      const progressCircle = document.querySelector(".progress-ring__circle");
+      if (!backToTopBtn || !progressCircle) return;
+
+      const circleRadius = 19;
+      const circumference = 2 * Math.PI * circleRadius; // ~119.38
+      progressCircle.style.strokeDasharray = `${circumference}`;
+      progressCircle.style.strokeDashoffset = `${circumference}`;
+
+      const updateScrollProgress = () => {
+        const target = contentArea || document.documentElement;
+        const scrollTop = target.scrollTop || window.scrollY || 0;
+        const scrollHeight = (target.scrollHeight || document.documentElement.scrollHeight) - (target.clientHeight || window.innerHeight);
+
+        if (scrollTop > 40) {
+          backToTopBtn.classList.add("show");
+        } else {
+          backToTopBtn.classList.remove("show");
+        }
+
+        let progress = 0;
+        if (scrollHeight > 0) {
+          progress = Math.min(Math.max(scrollTop / scrollHeight, 0), 1);
+        }
+
+        const offset = circumference - progress * circumference;
+        progressCircle.style.strokeDashoffset = offset;
+      };
+
+      if (contentArea) {
+        contentArea.addEventListener("scroll", updateScrollProgress, { passive: true });
+      }
+      window.addEventListener("scroll", updateScrollProgress, { passive: true });
+
+      updateScrollProgress();
+
+      backToTopBtn.onclick = () => {
+        if (contentArea) {
+          contentArea.scrollTo({ top: 0, behavior: "smooth" });
+        }
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      };
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initBackToTop);
+    } else {
+      initBackToTop();
+    }
+  </script>
+</body>
+
+</html>

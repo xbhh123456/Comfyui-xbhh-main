@@ -42,22 +42,53 @@ any_type = AnyType("*")
 def get_lora_by_filename(filename):
     """通过文件名获取LoRA"""
     lora_paths = folder_paths.get_filename_list("loras")
-    
+
     if filename in lora_paths:
         return filename
-    
+
     # 不带扩展名匹配
     lora_paths_no_ext = [os.path.splitext(x)[0] for x in lora_paths]
     file_no_ext = os.path.splitext(filename)[0]
-    
+
     if file_no_ext in lora_paths_no_ext:
         return lora_paths[lora_paths_no_ext.index(file_no_ext)]
-    
+
     # 模糊匹配
     for i, lora_path in enumerate(lora_paths):
         if filename in lora_path:
             return lora_paths[i]
-    
+
+    return None
+
+
+def get_active_trigger_from_db(lora_name):
+    """查询数据库中该 LoRA 当前有效触发词（与 /xbhh/lora/trigger 接口同语义）。
+
+    数据库是触发词的唯一事实来源（LoRA 管理器和堆的触发词弹窗保存时都写库），
+    widget 内的 trigger 只是添加时的缓存快照，可能已过期。
+    返回 None 表示数据库无记录或查询失败（此时保持 widget 原值）。
+    """
+    try:
+        from . import lora_database
+        conn = lora_database.get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_trigger, auto_trigger, trained_words FROM lora_global WHERE name = ?",
+            (lora_name,)
+        )
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            settings = lora_database.get_settings()
+            if settings.get("disable_auto_trigger", False):
+                # 关闭自动触发词：仅用用户自定义值
+                return row["user_trigger"] if row["user_trigger"] is not None else ""
+            if row["user_trigger"] is not None:
+                return row["user_trigger"]
+            return row["auto_trigger"] or row["trained_words"] or ""
+    except Exception as e:
+        print(f"[XBHH] Warning: trigger DB lookup failed for {lora_name}: {e}")
     return None
 
 
@@ -99,6 +130,13 @@ class XBHHMultiLoraLoaderPlus:
         preset_lines = []
         # 收集触发词
         trigger_words = []
+
+        # 「提示词权重控制」全局开关：关闭时触发词原样输出，不加任何权重
+        weight_control = kwargs.get('trigger_weight_control', kwargs.get('TRIGGER_WEIGHT_CONTROL', True))
+        if isinstance(weight_control, str):
+            weight_control = weight_control.strip().lower() not in ('', '0', 'false', 'none', 'no')
+        else:
+            weight_control = bool(weight_control)
         
         # 0. 预先收集现有的手动配置 LoRA
         existing_lora_names = set()
@@ -126,7 +164,7 @@ class XBHHMultiLoraLoaderPlus:
                     else:
                         strength_model = float(parts[2]) if len(parts) > 2 else 1.0
                         strength_clip = float(parts[3]) if len(parts) > 3 else strength_model
-                        trigger = parts[4] if len(parts) > 4 else ""
+                        # 第 5 段（触发词）不再从预设读取：触发词以数据库为唯一来源
                         trigger_weight = float(parts[5]) if len(parts) > 5 else 1.0
                         
                         # 不存在则作为预设项追加
@@ -136,7 +174,7 @@ class XBHHMultiLoraLoaderPlus:
                             "lora": lora_name,
                             "strength": strength_model,
                             "strengthTwo": strength_clip,
-                            "trigger": trigger,
+                            "trigger": "",
                             "triggerWeight": trigger_weight
                         }
 
@@ -144,8 +182,8 @@ class XBHHMultiLoraLoaderPlus:
         for key, value in kwargs.items():
             key_upper = key.upper()
             
-            # 检查是否是LoRA输入
-            if key_upper.startswith('LORA_') and isinstance(value, dict):
+            # 检查是否是LoRA输入：手动挂件为 lora_N，来自 lora_preset 连线的为 PRESET_<name>
+            if (key_upper.startswith('LORA_') or key_upper.startswith('PRESET_')) and isinstance(value, dict):
                 if 'on' not in value or 'lora' not in value or 'strength' not in value:
                     continue
                 
@@ -158,30 +196,41 @@ class XBHHMultiLoraLoaderPlus:
                 strength_clip = value.get('strengthTwo', strength_model)
                 trigger = value.get('trigger', '')
                 trigger_weight = value.get('triggerWeight', 1.0)
-                
+
+                # 数据库为准：触发词以数据库为唯一来源，数据库中已清空时也不再回退到旧值。
+                # 仅当数据库无该 LoRA 记录（返回 None）时，才使用 widget 值兜底（手动输入的行）。
+                db_trigger = get_active_trigger_from_db(lora_name)
+                if db_trigger is not None:
+                    trigger = str(db_trigger).strip()
+
                 if not is_on:
                     continue
                 
-                # 生成预设行 (格式: enabled|lora_name|strength_model|strength_clip|trigger|trigger_weight)
+                # 生成预设行 (格式: enabled|lora_name|strength_model|strength_clip|触发词段(恒空)|trigger_weight)
+                # 触发词段不再输出：触发词以数据库为唯一来源，避免过期词随预设流转
                 enabled_str = "1"
-                preset_lines.append(f"{enabled_str}|{lora_name}|{strength_model}|{strength_clip if strength_clip else strength_model}|{trigger}|{trigger_weight}")
+                preset_lines.append(f"{enabled_str}|{lora_name}|{strength_model}|{strength_clip if strength_clip else strength_model}||{trigger_weight}")
                 
                 # 收集启用的触发词（智能识别：未指定triggerWeight时自动同步LoRA强度，1.00去括号，多Tag去整体括号包围）
                 if is_on and trigger:
                     trigger_clean = trigger.strip()
                     if trigger_clean:
-                        # 如果没有显式自定义 trigger_weight（即为默认1.0），则自动同步 LoRA 模型强度 strength_model
-                        effective_weight = trigger_weight if abs(trigger_weight - 1.0) > 0.001 else strength_model
-                        
-                        is_default_weight = abs(effective_weight - 1.0) < 0.001
-                        is_multi_tag = ',' in trigger_clean or '\n' in trigger_clean
-                        already_weighted = (trigger_clean.startswith('(') and trigger_clean.endswith(')')) or (':' in trigger_clean and trigger_clean.endswith(')'))
-                        
-                        if is_default_weight or is_multi_tag or already_weighted:
+                        if not weight_control:
+                            # 开关关闭：触发词原样输出，恢复到初始状态（不加任何权重）
                             trigger_words.append(trigger_clean)
                         else:
-                            formatted_trigger = f"({trigger_clean}:{effective_weight:.2f})"
-                            trigger_words.append(formatted_trigger)
+                            # 如果没有显式自定义 trigger_weight（即为默认1.0），则自动同步 LoRA 模型强度 strength_model
+                            effective_weight = trigger_weight if abs(trigger_weight - 1.0) > 0.001 else strength_model
+                            
+                            is_default_weight = abs(effective_weight - 1.0) < 0.001
+                            is_multi_tag = ',' in trigger_clean or '\n' in trigger_clean
+                            already_weighted = (trigger_clean.startswith('(') and trigger_clean.endswith(')')) or (':' in trigger_clean and trigger_clean.endswith(')'))
+                            
+                            if is_default_weight or is_multi_tag or already_weighted:
+                                trigger_words.append(trigger_clean)
+                            else:
+                                formatted_trigger = f"({trigger_clean}:{effective_weight:.2f})"
+                                trigger_words.append(formatted_trigger)
                 
                 if clip is None:
                     strength_clip = 0
@@ -223,5 +272,5 @@ NODE_CLASS_MAPPINGS = {
     "XBHHMultiLoraLoaderPlus": XBHHMultiLoraLoaderPlus
 }
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "XBHHMultiLoraLoaderPlus": "XBHH Multi Lora Loader Plus 🎨⭐"
+    "XBHHMultiLoraLoaderPlus": "XBHH Multi Lora Loader Plus"
 }

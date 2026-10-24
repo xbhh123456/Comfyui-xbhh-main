@@ -337,5 +337,5 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "XBHHDynamicText": "xbhh 动态文本 ⚡"
+    "XBHHDynamicText": "xbhh 动态文本"
 }
